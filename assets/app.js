@@ -199,5 +199,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  setMode('create');
+  // رابط دعوة ?code=ABCD — الخصم يفتحه فيجد الرمز مملوءاً
+  const invited = new URLSearchParams(location.search).get('code');
+  if (invited) {
+    setMode('join');
+    $('#room-code').value = invited.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4);
+    $('#start-hint').textContent = 'دُعيتَ إلى ديوان — اكتب اسمك وادخل.';
+  } else {
+    setMode('create');
+  }
+  refreshStartButton();
 });

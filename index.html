@@ -146,8 +146,18 @@
           <div class="bench-side end">
             <strong id="opp-name">بانتظار الخصم…</strong>
             <small id="opp-role">—</small>
-            <div class="tally"><span id="score-opp">0</span> نقطة، <span id="wins-opp">0</span> حكم، <span id="opp-cards">4</span> بطاقات</div>
+            <div class="tally" id="opp-tally" hidden><span id="score-opp">0</span> نقطة، <span id="wins-opp">0</span> حكم، <span id="opp-cards">4</span> بطاقات</div>
           </div>
+        </div>
+
+        <div class="panel invite" id="invite-box" hidden>
+          <span class="case-tag">الدعوة</span>
+          <p class="invite-line">شارك هذا الرابط مع خصمك — يفتحه فيجد الرمز جاهزاً</p>
+          <div class="invite-row">
+            <input type="text" id="invite-link" readonly />
+            <button class="btn btn-ghost btn-sm" id="btn-copy-link">انسخ الرابط</button>
+          </div>
+          <p class="invite-line">أو أعطه الرمز: <b id="invite-code">—</b></p>
         </div>
 
         <div id="objection-banner" class="objection" hidden>اعتراض — المؤقّت متوقف حتى يفصل القاضي</div>

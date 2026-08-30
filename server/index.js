@@ -6,6 +6,7 @@
  */
 
 import http from 'node:http';
+import https from 'node:https';
 import fs from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -15,9 +16,12 @@ import { WebSocketServer } from 'ws';
 import * as S from './state.js';
 import * as judge from './judge.js';
 import { CARD_BY_ID } from './rules.js';
+import { loadEnv, lanAddress, ensureCert } from './setup.js';
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+const envFileUsed = loadEnv(ROOT);
 const PORT = Number(process.env.PORT) || 8000;
+const USE_HTTPS = process.argv.includes('--https') || process.env.HTTPS === '1';
 
 /* ─────────── ملفات ثابتة ─────────── */
 
@@ -44,7 +48,7 @@ function resolvePublic(pathname) {
   return file.startsWith(ROOT + path.sep) ? file : null;
 }
 
-const server = http.createServer((req, res) => {
+function handleRequest(req, res) {
   const url = new URL(req.url, 'http://localhost');
   const file = resolvePublic(url.pathname);
   if (!file) { res.writeHead(404).end('not found'); return; }
@@ -54,7 +58,11 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { 'content-type': MIME[path.extname(file)] });
     res.end(body);
   });
-});
+}
+
+const server = USE_HTTPS
+  ? https.createServer(await ensureCert(ROOT), handleRequest)
+  : http.createServer(handleRequest);
 
 /* ─────────── الغرف ─────────── */
 
@@ -355,9 +363,45 @@ wss.on('connection', (ws) => {
   });
 });
 
+// رسالة مفهومة بدل كومة أخطاء Node
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error('');
+    console.error(`  المنفذ ${PORT} مشغول — غالباً خادم قديم ما زال يعمل.`);
+    console.error('  أغلق نافذته، أو شغّل على منفذ آخر:');
+    console.error(`      PORT=${PORT + 1} npm start`);
+    console.error('');
+  } else {
+    console.error(`  تعذّر تشغيل الخادم: ${err.message}`);
+  }
+  process.exit(1);
+});
+
+wss.on('error', () => { /* يُبلَّغ عنه من server.on('error') */ });
+
 server.listen(PORT, () => {
-  console.log(`ديوان التحدي على http://localhost:${PORT}`);
+  const scheme = USE_HTTPS ? 'https' : 'http';
+  const lan = lanAddress();
+
+  console.log('');
+  console.log('  ديوان التحدي جاهز');
+  console.log('  ─────────────────────────────────────────────');
+  console.log(`  على هذا الجهاز:  ${scheme}://localhost:${PORT}`);
+  if (lan) console.log(`  من جهاز آخر:     ${scheme}://${lan}:${PORT}`);
+  console.log('');
   console.log(judge.hasCredentials()
-    ? 'القاضي: claude-opus-5'
-    : 'القاضي: وهمي (ANTHROPIC_API_KEY غير مضبوط)');
+    ? `  القاضي: claude-opus-5${envFileUsed ? '  (المفتاح من .env)' : ''}`
+    : '  القاضي: وهمي — أضف ANTHROPIC_API_KEY في ملف .env لحكم حقيقي');
+
+  if (!USE_HTTPS && lan) {
+    console.log('');
+    console.log('  ملاحظة: المايكروفون لا يعمل من جهاز آخر على http.');
+    console.log('  للصوت على الجوال شغّل:  npm run https');
+  }
+  if (USE_HTTPS) {
+    console.log('');
+    console.log('  الشهادة محلية، فسيحذّر المتصفح مرة واحدة:');
+    console.log('  اضغط «متقدم» ثم «متابعة» — ثم يعمل المايكروفون.');
+  }
+  console.log('');
 });

@@ -6,11 +6,16 @@
   "description": "ديوان التحدي — لعبة أدبية بين لاعبَين والحكم وكيل ذكاء اصطناعي",
   "scripts": {
     "start": "node server/index.js",
+    "https": "node server/index.js --https",
     "test": "node --test server/*.test.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.72.0",
+    "selfsigned": "^3.0.1",
     "ws": "^8.18.0",
     "zod": "^3.24.1"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

@@ -52,6 +52,7 @@ function render(state) {
   view = state;
 
   $('#trial-code').textContent = state.code;
+  renderInvite(state);
   $('#score-me').textContent = state.trial?.scores?.[state.me.id] ?? 0;
   $('#score-opp').textContent = state.opponent ? (state.trial?.scores?.[state.opponent.id] ?? 0) : 0;
   $('#wins-me').textContent = state.wins?.[state.me.id] ?? 0;
@@ -60,8 +61,10 @@ function render(state) {
   $('#me-name').textContent = state.me.name;
   $('#me-role').textContent = roleLabel(state.me.role);
   $('#opp-name').textContent = state.opponent?.name ?? 'بانتظار الخصم…';
-  $('#opp-role').textContent = state.opponent ? roleLabel(state.opponent.role) : '—';
+  $('#opp-role').textContent = state.opponent ? roleLabel(state.opponent.role) : '';
   $('#opp-cards').textContent = state.opponent?.cardsLeft ?? 0;
+  // رصيد خصمٍ لم يصل بعد ضجيج
+  $('#opp-tally').hidden = !state.opponent;
 
   renderCase(state);
   renderPhase(state, prev);
@@ -70,6 +73,29 @@ function render(state) {
 }
 
 const roleLabel = (r) => (r === 'prosecutor' ? 'المدعي العام' : 'محامي الدفاع');
+
+/** بطاقة الدعوة تظهر ما دام الخصم لم يصل. */
+function renderInvite(state) {
+  const box = $('#invite-box');
+  box.hidden = Boolean(state.opponent);
+  if (state.opponent) return;
+  $('#invite-code').textContent = state.code;
+  $('#invite-link').value = `${location.origin}/?code=${state.code}`;
+}
+
+export function bindInvite() {
+  $('#btn-copy-link').addEventListener('click', async (e) => {
+    const link = $('#invite-link').value;
+    try {
+      await navigator.clipboard.writeText(link);
+      e.target.textContent = 'نُسخ ✓';
+    } catch {
+      $('#invite-link').select();          // نسخ اليد حين يمنع المتصفح الحافظة
+      e.target.textContent = 'انسخه يدوياً';
+    }
+    setTimeout(() => { e.target.textContent = 'انسخ الرابط'; }, 1800);
+  });
+}
 
 function renderCase(state) {
   const box = $('#case-box');
@@ -239,6 +265,7 @@ function addLine(text, kind, extra = {}) {
 /* ─────────── الربط ─────────── */
 
 export function bindTrialUI() {
+  bindInvite();
   $('#btn-begin').addEventListener('click', () => send('advance'));
   $('#btn-start-trial').addEventListener('click', () => send('start-trial'));
   $('#btn-next-trial').addEventListener('click', () => send('next-trial'));

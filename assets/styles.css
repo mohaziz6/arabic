@@ -862,3 +862,33 @@ input.code {
   .bench-side strong { font-size: 13.5px; }
   .bench-side .tally { font-size: 11px; }
 }
+
+/* بطاقة الدعوة */
+
+.panel.invite { margin-bottom: 16px; }
+.invite-line { color: var(--muted); font-size: 13.5px; margin: 0 0 10px; }
+.invite-line b {
+  color: var(--gold-deep);
+  font-size: 17px;
+  letter-spacing: 3px;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+.invite-row { display: flex; gap: 9px; margin-bottom: 12px; }
+
+#invite-link {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 13px;
+  font: inherit;
+  font-size: 13.5px;
+  direction: ltr;
+  text-align: left;
+  color: var(--ink-soft);
+  background: var(--sand-50);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+}
+
+#btn-copy-link { flex: none; }
