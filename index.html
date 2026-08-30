@@ -124,10 +124,83 @@
       </div>
     </section>
 
+
+    <!-- ═══ الشاشة الرابعة: المحاكمة ═══ -->
+    <section id="screen-trial" class="screen">
+      <div class="wrap">
+        <header class="topbar">
+          <div class="brand"><span class="mini-seal">د</span> المحاكمة</div>
+          <div class="room-chip">رمز الديوان <b id="trial-code">—</b></div>
+        </header>
+
+        <div class="bench">
+          <div class="bench-side">
+            <strong id="me-name">—</strong>
+            <small id="me-role">—</small>
+            <div class="tally"><span id="score-me">0</span> نقطة، <span id="wins-me">0</span> حكم</div>
+          </div>
+          <div class="bench-mid">
+            <div class="phase" id="phase-label">لم تبدأ المحاكمة</div>
+            <div class="timer-ring"><span id="timer">—</span></div>
+          </div>
+          <div class="bench-side end">
+            <strong id="opp-name">بانتظار الخصم…</strong>
+            <small id="opp-role">—</small>
+            <div class="tally"><span id="score-opp">0</span> نقطة، <span id="wins-opp">0</span> حكم، <span id="opp-cards">4</span> بطاقات</div>
+          </div>
+        </div>
+
+        <div id="objection-banner" class="objection" hidden>اعتراض — المؤقّت متوقف حتى يفصل القاضي</div>
+
+        <button class="btn btn-primary" id="btn-start-trial">ارفع الجلسة</button>
+
+        <div class="court">
+          <div class="court-main">
+        <div class="panel case" id="case-box" hidden>
+          <span class="case-tag">القضية</span>
+          <h3 id="case-charge">—</h3>
+          <p class="case-defendant">المتهم: <b id="case-defendant">—</b></p>
+          <p class="case-facts" id="case-facts">—</p>
+          <button class="btn btn-primary btn-sm" id="btn-begin">ابدأ المرافعات</button>
+        </div>
+
+            <div class="panel speak" id="speak-panel" hidden>
+              <div class="speak-head">
+                <strong>دورك — ترافع الآن</strong>
+                <span class="mic-state" id="mic-state">يستمع…</span>
+              </div>
+              <textarea id="transcript" rows="5" placeholder="تكلّم… وسيظهر كلامك هنا لتصحّحه قبل الإرسال"></textarea>
+              <p class="hint">راجع النص قبل إرساله — القاضي يحكم على ما هو مكتوب هنا.</p>
+              <button class="btn btn-primary" id="btn-submit-speech">أنهيتُ مرافعتي</button>
+            </div>
+
+            <div class="panel waiting-turn" id="waiting-panel" hidden>
+              <div class="waiting"><i></i><i></i><i></i> خصمك يترافع… اعترض إن رأيت ما يستوجب</div>
+            </div>
+
+            <div class="panel verdict" id="verdict-box" hidden>
+              <span class="case-tag">الحكم</span>
+              <h3 id="verdict-spoken">—</h3>
+              <p class="case-facts" id="verdict-reasoning">—</p>
+              <button class="btn btn-primary btn-sm" id="btn-next-trial">القضية التالية</button>
+              <p class="session-result" id="session-result" hidden></p>
+            </div>
+
+            <div class="judge-log" id="judge-log"></div>
+          </div>
+
+          <aside class="court-side">
+            <h4 class="hand-title">بطاقاتك</h4>
+            <div id="hand" class="hand"></div>
+          </aside>
+        </div>
+      </div>
+    </section>
+
   </div>
 
   <script src="assets/background.js"></script>
   <script src="assets/games.js"></script>
-  <script src="assets/app.js"></script>
+  <script type="module" src="assets/app.js"></script>
 </body>
 </html>

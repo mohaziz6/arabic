@@ -1,7 +1,14 @@
 /**
- * ديوان التحدي — طبقة الواجهة (تصميم فقط).
- * لا يوجد اتصال بالشبكة ولا منطق لعب حتى الآن؛ الحالة محلية في المتصفح.
+ * ديوان التحدي — التنقل بين الشاشات واختيار اللعبة.
+ *
+ * «المحاكمة» موصولة بالخادم عبر assets/trial.js؛ بقية الألعاب لم تُبنَ بعد
+ * وتقف عند شاشة الاستعداد.
  */
+
+import { connect, bindTrialUI, startTrial } from './trial.js';
+
+/** معرّف لعبة المحاكمة في كتالوج GAMES. */
+const TRIAL_ID = 'muhakama';
 
 const state = {
   mode: 'create',   // 'create' | 'join'
@@ -27,11 +34,6 @@ function show(screenId) {
 }
 
 /* ---------- شاشة البدء ---------- */
-
-function makeCode() {
-  const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // بلا حروف ملتبسة
-  return Array.from({ length: 4 }, () => letters[Math.floor(Math.random() * letters.length)]).join('');
-}
 
 function refreshStartButton() {
   const nameOk = $('#player-name').value.trim().length >= 2;
@@ -127,6 +129,31 @@ function openLobby() {
   show('screen-lobby');
 }
 
+/* ---------- المحاكمة ---------- */
+
+let trialConnected = false;
+
+/** يفتح شاشة المحاكمة ويصل بالخادم — كل منطق اللعب هناك. */
+function enterTrial() {
+  if (trialConnected) { show('screen-trial'); return; }   // وإلا تسرّب مقبس وتضاعفت الأزرار
+  trialConnected = true;
+  bindTrialUI();
+  connect({
+    mode: state.mode,
+    name: state.name,
+    code: state.code,
+    onJoined: ({ code }) => {
+      state.code = code;
+      $('#trial-code').textContent = code;
+      show('screen-trial');
+    },
+    onError: (err) => {
+      if (!$('#screen-trial').classList.contains('is-active')) trialConnected = false;
+      window.alert(err);
+    },
+  });
+}
+
 /* ---------- الربط ---------- */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -145,9 +172,10 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#btn-start').addEventListener('click', (e) => {
     burstFrom(e.currentTarget, 18);
     state.name = $('#player-name').value.trim();
-    state.code = state.mode === 'create' ? makeCode() : $('#room-code').value.trim();
+    // رمز الإنشاء يصدره الخادم وحده؛ الاختراع محلياً يعطي المُنشئ رمزاً لا وجود له
+    state.code = state.mode === 'create' ? '' : $('#room-code').value.trim();
 
-    $('#chip-code').textContent = state.code;
+    $('#chip-code').textContent = state.code || '—';
     $('#p1-name').textContent = state.name;
     $('#p1-avatar').textContent = state.name[0] || '؟';
     show('screen-games');
@@ -155,7 +183,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   $('#btn-confirm').addEventListener('click', (e) => {
     burstFrom(e.currentTarget, 16);
-    openLobby();
+    if (state.gameId === TRIAL_ID) enterTrial();
+    else openLobby();
   });
   $('#btn-back').addEventListener('click', () => show('screen-start'));
   $('#btn-change-game').addEventListener('click', () => show('screen-games'));

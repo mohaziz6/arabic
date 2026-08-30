@@ -632,3 +632,233 @@ input.code {
 }
 
 .actionbar-actions { display: flex; gap: 10px; align-items: center; }
+
+/* ═══════════ شاشة المحاكمة ═══════════ */
+
+.bench {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  margin-bottom: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--white);
+  box-shadow: var(--shadow-sm);
+}
+
+.bench-side strong { display: block; font-size: 15px; font-weight: 600; }
+.bench-side small { color: var(--gold-deep); font-size: 12.5px; font-weight: 500; }
+.bench-side .tally { color: var(--muted); font-size: 12px; margin-top: 3px; }
+.bench-side.end { text-align: end; }
+
+.bench-mid { text-align: center; }
+.bench-mid .phase { font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+
+.timer-ring {
+  width: 58px;
+  height: 58px;
+  margin-inline: auto;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 2px solid var(--gold-soft);
+  background: var(--gold-tint);
+  font-size: 21px;
+  font-weight: 700;
+  color: var(--gold-deep);
+}
+
+.objection {
+  padding: 11px 16px;
+  margin-bottom: 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--clay);
+  background: #fdf1ec;
+  color: #8a3f1c;
+  font-weight: 600;
+  font-size: 14px;
+  text-align: center;
+}
+
+.court {
+  display: grid;
+  grid-template-columns: 1fr 288px;
+  gap: 16px;
+  align-items: start;
+}
+
+.court-main { display: flex; flex-direction: column; gap: 14px; }
+
+.case-tag {
+  display: inline-block;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  color: var(--gold-deep);
+  background: var(--gold-tint);
+  border: 1px solid var(--gold-soft);
+  padding: 3px 11px;
+  border-radius: 999px;
+  margin-bottom: 10px;
+}
+
+.panel.case h3, .panel.verdict h3 {
+  font-family: 'Aref Ruqaa', serif;
+  font-size: 30px;
+  line-height: 1.6;
+  margin: 0 0 8px;
+}
+
+.case-defendant { color: var(--ink-soft); font-size: 14px; margin: 0 0 6px; }
+.case-defendant b { color: var(--ink); font-weight: 600; }
+.case-facts { color: var(--muted); font-size: 14px; line-height: 1.85; margin: 0 0 16px; }
+
+.panel.verdict { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(192, 138, 62, 0.14), var(--shadow-md); }
+
+.session-result {
+  margin: 14px 0 0;
+  font-family: 'Aref Ruqaa', serif;
+  font-size: 30px;
+  color: var(--gold-deep);
+}
+
+.speak-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 11px;
+}
+
+.speak-head strong { font-size: 15px; }
+
+.mic-state {
+  font-size: 12px;
+  color: var(--gold-deep);
+  background: var(--gold-tint);
+  border: 1px solid var(--gold-soft);
+  padding: 3px 11px;
+  border-radius: 999px;
+}
+
+#transcript {
+  width: 100%;
+  padding: 13px 15px;
+  font: inherit;
+  font-size: 15px;
+  line-height: 1.9;
+  color: var(--ink);
+  background: var(--sand-50);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  resize: vertical;
+}
+
+#transcript:focus {
+  outline: none;
+  background: var(--white);
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(192, 138, 62, 0.15);
+}
+
+.panel.speak .hint { margin: 9px 0 14px; }
+.panel.waiting-turn { text-align: center; }
+
+/* سجل القاضي */
+
+.judge-log {
+  display: flex;
+  flex-direction: column;   /* محضر زمني: الأقدم أعلى، والتمرير يلاحق الأحدث */
+  gap: 10px;
+  max-height: 400px;
+  overflow-y: auto;
+  padding-inline-end: 4px;
+}
+
+.judge-log:empty { display: none; }
+
+.judge-line {
+  padding: 13px 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--white);
+  box-shadow: var(--shadow-sm);
+}
+
+.judge-line .judge-text { font-size: 14.5px; line-height: 1.85; }
+.judge-line.thinking { border-style: dashed; background: var(--sand-100); box-shadow: none; }
+.judge-line.thinking .judge-text { color: var(--muted); font-size: 13.5px; }
+.judge-line.sys .judge-text { color: var(--muted); font-size: 13px; }
+.judge-line.verdict { border-color: var(--gold); background: var(--gold-tint); }
+
+.judge-marks { display: flex; gap: 7px; margin-top: 9px; }
+
+.mark {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 11px;
+  border-radius: 999px;
+  background: var(--sand-100);
+  color: var(--ink-soft);
+}
+
+.mark.plus { background: #e9f2ea; color: #3d6b45; }
+.mark.minus { background: #fbeae5; color: #8a3f1c; }
+
+/* البطاقات */
+
+.hand-title { font-size: 13px; color: var(--muted); margin: 0 0 10px; font-weight: 600; }
+.hand { display: flex; flex-direction: column; gap: 9px; }
+
+.play-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  width: 100%;
+  padding: 12px 14px;
+  text-align: start;
+  font: inherit;
+  color: inherit;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: transform 0.18s var(--ease), border-color 0.2s, box-shadow 0.2s;
+}
+
+.play-card:hover:not(:disabled) {
+  transform: translateY(-2px);
+  border-color: var(--gold);
+  box-shadow: var(--shadow-md);
+}
+
+.play-card:disabled { cursor: not-allowed; opacity: 0.5; }
+.play-card.spent { background: var(--sand-100); box-shadow: none; }
+.play-card.spent .play-card-body strong { text-decoration: line-through; }
+
+.play-card-glyph {
+  flex: none;
+  width: 32px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border: 1.5px solid var(--gold-soft);
+  border-radius: 50% 50% 6px 6px / 56% 56% 6px 6px;
+  background: var(--gold-tint);
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--gold-deep);
+}
+
+.play-card-body strong { display: block; font-size: 14px; font-weight: 600; }
+.play-card-body small { display: block; color: var(--muted); font-size: 12px; line-height: 1.65; margin-top: 2px; }
+
+@media (max-width: 820px) {
+  .court { grid-template-columns: 1fr; }
+  .bench { grid-template-columns: 1fr auto 1fr; gap: 8px; padding: 13px; }
+  .bench-side strong { font-size: 13.5px; }
+  .bench-side .tally { font-size: 11px; }
+}
