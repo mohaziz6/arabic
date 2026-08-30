@@ -12,6 +12,12 @@ const state = {
 
 const $ = (sel) => document.querySelector(sel);
 
+/** انفجار معلقات من موضع العنصر الذي ضُغط. */
+function burstFrom(el, count) {
+  const r = el.getBoundingClientRect();
+  window.Diwan?.burst(r.left + r.width / 2, r.top + r.height / 2, count);
+}
+
 /* ---------- التنقل بين الشاشات ---------- */
 
 function show(screenId) {
@@ -89,7 +95,10 @@ function renderGames() {
   $('#games-grid').innerHTML = GAMES.map(gameCard).join('') + randomCard();
 
   document.querySelectorAll('.card').forEach((card) => {
-    card.addEventListener('click', () => selectGame(card.dataset.id));
+    card.addEventListener('click', () => {
+      burstFrom(card, 8);
+      selectGame(card.dataset.id);
+    });
   });
 }
 
@@ -133,7 +142,8 @@ document.addEventListener('DOMContentLoaded', () => {
     refreshStartButton();
   });
 
-  $('#btn-start').addEventListener('click', () => {
+  $('#btn-start').addEventListener('click', (e) => {
+    burstFrom(e.currentTarget, 18);
     state.name = $('#player-name').value.trim();
     state.code = state.mode === 'create' ? makeCode() : $('#room-code').value.trim();
 
@@ -143,7 +153,10 @@ document.addEventListener('DOMContentLoaded', () => {
     show('screen-games');
   });
 
-  $('#btn-confirm').addEventListener('click', openLobby);
+  $('#btn-confirm').addEventListener('click', (e) => {
+    burstFrom(e.currentTarget, 16);
+    openLobby();
+  });
   $('#btn-back').addEventListener('click', () => show('screen-start'));
   $('#btn-change-game').addEventListener('click', () => show('screen-games'));
 

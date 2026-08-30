@@ -5,12 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>ديوان التحدي</title>
   <meta name="description" content="ديوان التحدي — لعبة أدبية بين لاعبَين، والحكم وكيل ذكاء اصطناعي." />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/fonts.css" />
   <link rel="stylesheet" href="assets/styles.css" />
 </head>
 <body>
+  <canvas id="bg" aria-hidden="true"></canvas>
+  <canvas id="fg" aria-hidden="true"></canvas>
+
   <div class="app">
 
     <!-- ═══ الشاشة الأولى: البدء ═══ -->
@@ -21,7 +22,7 @@
           <h1 class="title">ديوان التحدي</h1>
           <p class="subtitle">مبارزة أدبية بين اثنين… والحكم لا يجامل</p>
 
-          <div class="rule"></div>
+          <div class="najdi-band center"></div>
 
           <div class="panel">
             <div class="tabs" role="tablist">
@@ -39,7 +40,7 @@
               <input type="text" id="room-code" class="code" placeholder="XXXX" maxlength="4" autocomplete="off" inputmode="latin" />
             </label>
 
-            <button class="btn btn-gold" id="btn-start" disabled>ابدأ</button>
+            <button class="btn btn-primary" id="btn-start" disabled>ابدأ</button>
 
             <p class="hint" id="start-hint">
               كل لاعب يفتح اللعبة من جهازه — واحد ينشئ الديوان ويرسل الرمز، والثاني ينضم به.
@@ -84,9 +85,9 @@
 
         <div class="actionbar">
           <div class="pick" id="pick-label">لم تختر بعد</div>
-          <div style="display:flex; gap:10px; align-items:center;">
+          <div class="actionbar-actions">
             <button class="back" id="btn-back">رجوع</button>
-            <button class="btn btn-gold btn-sm" id="btn-confirm" disabled>تأكيد الاختيار</button>
+            <button class="btn btn-primary btn-sm" id="btn-confirm" disabled>تأكيد الاختيار</button>
           </div>
         </div>
 
@@ -103,13 +104,13 @@
         </header>
 
         <div class="panel">
-          <div class="glyph" id="lobby-glyph" style="margin-inline:auto;">؟</div>
-          <h2 style="font-family:'Amiri',serif; font-size:34px; margin:6px 0 4px;" id="lobby-title">—</h2>
-          <p style="color:var(--muted); margin:0 0 20px;" id="lobby-desc">—</p>
+          <div class="glyph" id="lobby-glyph">؟</div>
+          <h2 id="lobby-title">—</h2>
+          <p class="lobby-desc" id="lobby-desc">—</p>
 
-          <div class="rule"></div>
+          <div class="najdi-band center"></div>
 
-          <p style="color:var(--muted); font-size:13px; margin:0;">شارك هذا الرمز مع خصمك</p>
+          <p class="share-label">شارك هذا الرمز مع خصمك</p>
           <div class="code-display" id="lobby-code">—</div>
           <button class="btn btn-ghost btn-sm" id="btn-copy">نسخ الرمز</button>
 
@@ -125,6 +126,7 @@
 
   </div>
 
+  <script src="assets/background.js"></script>
   <script src="assets/games.js"></script>
   <script src="assets/app.js"></script>
 </body>
