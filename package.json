@@ -1,0 +1,16 @@
+{
+  "name": "diwan-challenge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "ديوان التحدي — لعبة أدبية بين لاعبَين والحكم وكيل ذكاء اصطناعي",
+  "scripts": {
+    "start": "node server/index.js",
+    "test": "node --test server/*.test.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.72.0",
+    "ws": "^8.18.0",
+    "zod": "^3.24.1"
+  }
+}
