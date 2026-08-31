@@ -155,7 +155,7 @@ async function handleSpeech(room, playerId, transcript) {
   room.busy = true;
 
   const phase = S.currentPhase(st);
-  const played = st.trial.playedThisPhase;
+  const imposed = st.trial.imposed;
 
   announce(room, 'القاضي ينظر في المرافعة…', { thinking: true });
 
@@ -166,16 +166,16 @@ async function handleSpeech(room, playerId, transcript) {
       role: speaker.role,
       phase: phase.id,
       transcript,
-      card: played ? { cardId: played.cardId, content: played.content } : null,
+      card: imposed ? { cardId: imposed.cardId, content: imposed.content } : null,
       judgeId: st.judgeId,
     });
-    const card = played ? CARD_BY_ID[played.cardId] : null;
+    const card = imposed ? CARD_BY_ID[imposed.cardId] : null;
     judgement = {
       score: data.score,
       comment: data.comment,
-      cardId: played?.cardId ?? null,
-      cardFulfilled: played ? data.cardFulfilled : null,
-      cardDelta: played ? (data.cardFulfilled ? card.bonus : card.penalty) : 0,
+      cardId: imposed?.cardId ?? null,
+      cardFulfilled: imposed ? data.cardFulfilled : null,
+      cardDelta: imposed ? (data.cardFulfilled ? card.bonus : card.penalty) : 0,
     };
   } catch (err) {
     room.busy = false;
@@ -343,9 +343,28 @@ wss.on('connection', (ws) => {
 
         case 'play-card': {
           if (!room) break;
+          if (room.busy) {          // القاضي ينظر — رمية الآن تُصرف بلا أثر
+            send(ws, 'error', { error: 'القاضي ينظر — أمهله لحظة' });
+            break;
+          }
           const r = S.playCard(room.state, playerId, msg.cardId);
           if (!r.ok) { send(ws, 'error', { error: r.error }); break; }
+
           broadcast(room);
+          const card = CARD_BY_ID[msg.cardId];
+          const thrower = room.state.players[playerId];
+          for (const [pid, sock] of room.sockets) {
+            send(sock, 'weapon-thrown', {
+              cardId: msg.cardId,
+              name: card.name,
+              // الاعتراض لا يفرض قيداً، فنصّه دعوةُ القاضي لا مطلبٌ من الخصم
+              onTarget: card.onTarget ?? 'قُوطعت المرافعة — القاضي ينظر في الاعتراض',
+              content: room.state.trial?.imposed?.content ?? null,
+              by: thrower?.name ?? '',
+              atMe: pid === r.target,          // الهدف يرى انميشناً مختلفاً
+            });
+          }
+
           if (room.state.trial?.pendingObjection?.by === playerId) await handleObjection(room, playerId);
           break;
         }

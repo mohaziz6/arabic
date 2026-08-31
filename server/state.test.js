@@ -55,24 +55,59 @@ test('ترتيب المراحل: ادعاء ثم دفاع ثم ردّ ثم رد�
   ]);
 });
 
-test('من ليس دوره لا يترافع ولا يلعب بطاقة عادية', () => {
+test('من ليس دوره لا يترافع، لكنه هو وحده من يرمي السلاح', () => {
   const s = twoPlayerTrial();
-  const other = opponentOf(s, currentSpeaker(s).id);
-  assert.equal(submitSpeech(s, other, 'ن', judged(5)).ok, false);
-  assert.equal(canPlayCard(s, other, 'fusha').ok, false);
+  const speaker = currentSpeaker(s).id;
+  const other = opponentOf(s, speaker);
+
+  assert.equal(submitSpeech(s, other, 'ن', judged(5)).ok, false, 'لا يترافع');
+  assert.equal(canPlayCard(s, other, 'fusha').ok, true, 'يرمي على المترافع');
+  assert.equal(canPlayCard(s, speaker, 'fusha').ok, false, 'لا يرمي على نفسه');
 });
 
-test('بطاقة واحدة كحد أقصى في المرافعة، ولا تُلعب مرتين في الجلسة', () => {
+test('سلاح واحد كحد أقصى في المرافعة، ولا يُرمى مرتين في الجلسة', () => {
   const s = twoPlayerTrial();
-  const me = currentSpeaker(s).id;
-  assert.equal(playCard(s, me, 'fusha').ok, true);
-  assert.equal(playCard(s, me, 'mathal').ok, false, 'الثانية تُرفض');
+  const speaker = currentSpeaker(s).id;
+  const thrower = opponentOf(s, speaker);
 
-  submitSpeech(s, me, 'ن', judged(5));
-  submitSpeech(s, currentSpeaker(s).id, 'ن', judged(5));
-  assert.equal(currentSpeaker(s).id, me, 'رجع دوري');
-  assert.equal(playCard(s, me, 'fusha').ok, false, 'مستهلكة من محاكمة سابقة');
-  assert.equal(playCard(s, me, 'bayt').ok, true);
+  assert.equal(playCard(s, thrower, 'fusha').ok, true);
+  assert.equal(playCard(s, thrower, 'mathal').ok, false, 'الثاني يُرفض');
+
+  submitSpeech(s, speaker, 'ن', judged(5));
+  assert.equal(currentSpeaker(s).id, thrower, 'تبادل الأدوار: صار الرامي يترافع');
+
+  // الآن الهدف السابق هو الرامي، وبطاقته لم تُستهلك بعد
+  assert.equal(playCard(s, speaker, 'fusha').ok, true, 'بطاقته هو لم تُصرف');
+
+  // ولا يرمي سلاحاً ثانياً في نفس المرافعة
+  assert.equal(playCard(s, speaker, 'bayt').ok, false, 'سلاح واحد للمرافعة');
+
+  // وحين يعود دوره في الرمي، فصحاه مستهلكة
+  submitSpeech(s, thrower, 'ن', judged(5));
+  assert.equal(currentSpeaker(s).id, speaker, 'رجعت المرافعة للأول');
+  assert.equal(playCard(s, thrower, 'fusha').ok, false, 'مستهلكة من مرافعة سابقة');
+});
+
+test('القيد المرمي ظاهر للطرفين — الهدف يجب أن يراه ليصارعه', () => {
+  const s = twoPlayerTrial();
+  const speaker = currentSpeaker(s).id;
+  const thrower = opponentOf(s, speaker);
+  playCard(s, thrower, 'bayt');
+
+  assert.equal(viewFor(s, speaker).trial.imposed.cardId, 'bayt', 'الهدف يراه');
+  assert.equal(viewFor(s, thrower).trial.imposed.cardId, 'bayt', 'والرامي يراه');
+  assert.equal(viewFor(s, speaker).trial.imposed.on, speaker);
+});
+
+test('نقاط القيد تقع على المتحدّث لا على الرامي — فالرمي مقامرة', () => {
+  const s = twoPlayerTrial();
+  const speaker = currentSpeaker(s).id;
+  const thrower = opponentOf(s, speaker);
+
+  playCard(s, thrower, 'bayt');
+  submitSpeech(s, speaker, 'ن', judged(6, 4));       // كسر القيد
+  assert.equal(s.trial.scores[speaker], 10, 'المتحدّث ربح المكافأة');
+  assert.equal(s.trial.scores[thrower], 0, 'الرامي لم يربح شيئاً');
 });
 
 test('البطاقات المولَّدة تحمل محتوى القضية', () => {
@@ -83,7 +118,7 @@ test('البطاقات المولَّدة تحمل محتوى القضية', () 
   assert.equal(fusha.content, null, 'الفصحى قاعدة بلا محتوى');
 });
 
-test('الاعتراض يُلعب في دور الخصم فقط، ويُمنح أو يُخصم', () => {
+test('الاعتراض يُرمى في دور الخصم فقط، ونقاطه على الرامي', () => {
   const s = twoPlayerTrial();
   const speaker = currentSpeaker(s).id;
   const listener = opponentOf(s, speaker);
@@ -105,12 +140,12 @@ test('الاعتراض المرفوض يخصم', () => {
   assert.equal(s.trial.scores[listener], -3);
 });
 
-test('النقاط تجمع درجة المرافعة ودلتا البطاقة', () => {
+test('العجز عن القيد يخصم من المتحدّث', () => {
   const s = twoPlayerTrial();
-  const me = currentSpeaker(s).id;
-  playCard(s, me, 'bayt');
-  submitSpeech(s, me, 'ن', judged(6, 4));
-  assert.equal(s.trial.scores[me], 10);
+  const speaker = currentSpeaker(s).id;
+  playCard(s, opponentOf(s, speaker), 'bayt');
+  submitSpeech(s, speaker, 'ن', judged(6, -3));      // عجز عن إدخال البيت
+  assert.equal(s.trial.scores[speaker], 3);
 });
 
 test('أول من يبلغ عدد الأحكام يفوز بالجلسة', () => {
@@ -148,17 +183,7 @@ test('لقطة اللاعب لا تسرّب بطاقات الخصم', () => {
   assert.equal(v.me.hand.length, 4);
 });
 
-test('لقطة اللاعب لا تسرّب بطاقة لعبها الخصم في دوره', () => {
-  const s = twoPlayerTrial();
-  const speaker = currentSpeaker(s).id;
-  const watcher = opponentOf(s, speaker);
-  playCard(s, speaker, 'bayt');
 
-  // ما دام الخصم يترافع، لا يعرف المشاهد أي بطاقة لعب حتى يحكم القاضي
-  const v = viewFor(s, watcher);
-  assert.equal(v.trial.playedThisPhase, null, 'بطاقة الخصم المعلّقة محجوبة');
-  assert.equal(viewFor(s, speaker).trial.playedThisPhase.cardId, 'bayt', 'وأراها أنا');
-});
 
 test('لا محاكمة قبل اكتمال اللاعبَين', () => {
   const s = createSession('AB12', 'p1', 'محمد');

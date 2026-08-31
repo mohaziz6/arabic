@@ -133,18 +133,24 @@
           <div class="room-chip">رمز الديوان <b id="trial-code">—</b></div>
         </header>
 
-        <div class="judge-badge" id="judge-badge" hidden></div>
-
         <div class="bench">
           <div class="bench-side">
             <strong id="me-name">—</strong>
             <small id="me-role">—</small>
             <div class="tally"><span id="score-me">0</span> نقطة، <span id="wins-me">0</span> حكم</div>
           </div>
-          <div class="bench-mid">
+
+          <div class="bench-mid" id="judge-seat">
+            <div class="judge-portrait" id="judge-portrait"></div>
+            <div class="bench-rail"></div>
+            <div class="judge-plate">
+              <strong id="judge-name">القاضي</strong>
+              <small id="judge-brief">بانتظار القرعة</small>
+            </div>
             <div class="phase" id="phase-label">لم تبدأ المحاكمة</div>
             <div class="timer-ring"><span id="timer">—</span></div>
           </div>
+
           <div class="bench-side end">
             <strong id="opp-name">بانتظار الخصم…</strong>
             <small id="opp-role">—</small>
@@ -202,8 +208,16 @@
           </div>
 
           <aside class="court-side">
-            <h4 class="hand-title">بطاقاتك</h4>
-            <div id="hand" class="hand"></div>
+            <button class="weapon-btn" type="button" id="btn-weapons">
+              <span class="weapon-btn-glyph"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 2 3 3l1 3.5 7 7 2.5-2.5-7-7zM17.5 2 21 3l-1 3.5-7 7L10.5 11l7-7zM8.5 15.5 11 18l-4 4-3-3zM15.5 15.5 13 18l4 4 3-3z"/></svg></span>
+              <span class="weapon-btn-text">
+                <strong>سلاحك</strong>
+                <small id="weapons-left">٤ أسلحة</small>
+              </span>
+            </button>
+            <p class="weapon-hint" id="weapon-hint">تُرمى على خصمك أثناء مرافعته</p>
+
+            <div class="imposed-card" id="imposed-card" hidden></div>
           </aside>
         </div>
       </div>
@@ -220,6 +234,26 @@
       <p class="judge-draw-name" id="judge-draw-name"></p>
       <p class="judge-draw-brief" id="judge-draw-brief"></p>
       <p class="judge-draw-warn" id="judge-draw-warn"></p>
+    </div>
+  </div>
+
+  <!-- ═══ خزانة الأسلحة ═══ -->
+  <div class="armory" id="armory" hidden>
+    <div class="armory-box">
+      <div class="najdi-band"></div>
+      <h2 id="armory-title">اختر سلاحك</h2>
+      <p class="armory-sub" id="armory-sub">يُرمى على خصمك فيصارعه أمام القاضي</p>
+      <div class="armory-deck" id="armory-deck"></div>
+      <button class="btn btn-ghost btn-sm" id="btn-armory-close">أغلق الخزانة</button>
+    </div>
+  </div>
+
+  <!-- ═══ إعلان الرمية ═══ -->
+  <div class="strike" id="strike" hidden>
+    <div class="strike-inner">
+      <div class="strike-glyph" id="strike-glyph"></div>
+      <h3 id="strike-title"></h3>
+      <p id="strike-body"></p>
     </div>
   </div>
 

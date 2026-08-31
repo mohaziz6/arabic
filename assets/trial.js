@@ -6,8 +6,14 @@
 import { startListening, speak, speechSupported } from './speech.js';
 import { revealJudge } from './judge-reveal.js';
 import { judgeSilhouette } from './judge-art.js';
+import { openArmory, closeArmory, showStrike, isArmoryOpen } from './armory.js';
 
 const $ = (s) => document.querySelector(s);
+
+/** نصّ القضية والقيود يولّدها النموذج — لا تُحقن كـ HTML. */
+const esc = (v) =>
+  String(v ?? '').replace(/[&<>"']/g, (ch) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 const el = (tag, cls, text) => {
   const n = document.createElement(tag);
   if (cls) n.className = cls;
@@ -36,6 +42,7 @@ export function connect({ mode, name, code, onJoined, onError }) {
     const m = JSON.parse(ev.data);
     if (m.type === 'joined') { judges = m.judges ?? []; onJoined?.(m); }
     else if (m.type === 'judge-draw') { judges = m.judges; revealJudge(m.judges, m.chosen); }
+    else if (m.type === 'weapon-thrown') showStrike(m);
     else if (m.type === 'state') render(m.state);
     else if (m.type === 'judge') onJudge(m);
     else if (m.type === 'error') onError?.(m.error);
@@ -57,7 +64,8 @@ function render(state) {
 
   $('#trial-code').textContent = state.code;
   renderInvite(state);
-  renderJudgeBadge(state);
+  renderJudgeSeat(state);
+  renderWeapons(state);
   $('#score-me').textContent = state.trial?.scores?.[state.me.id] ?? 0;
   $('#score-opp').textContent = state.opponent ? (state.trial?.scores?.[state.opponent.id] ?? 0) : 0;
   $('#wins-me').textContent = state.wins?.[state.me.id] ?? 0;
@@ -73,26 +81,25 @@ function render(state) {
 
   renderCase(state);
   renderPhase(state, prev);
-  renderHand(state);
   renderVerdict(state);
 }
 
 const roleLabel = (r) => (r === 'prosecutor' ? 'المدعي العام' : 'محامي الدفاع');
 
-/** شارة القاضي: من يحكم هذه الجلسة، وبم يُرضى. */
-function renderJudgeBadge(state) {
-  const badge = $('#judge-badge');
+/** منصّة القاضي في وسط الطاولة: صورته ولوحة اسمه. */
+function renderJudgeSeat(state) {
   const j = judges.find((x) => x.id === state.judgeId);
-  badge.hidden = !j;
+  const seat = $('#judge-seat');
+  seat.classList.toggle('seated', Boolean(j));
   if (!j) return;
-  if (badge.dataset.id === j.id) return;          // لا نعيد بناء SVG بلا داعٍ
-  badge.dataset.id = j.id;
-  badge.innerHTML = `
-    ${judgeSilhouette(j.id)}
-    <div class="judge-badge-text">
-      <strong>${j.name}</strong>
-      <small>${j.brief}</small>
-    </div>`;
+
+  $('#judge-name').textContent = j.name;
+  $('#judge-brief').textContent = j.brief;
+
+  const portrait = $('#judge-portrait');
+  if (portrait.dataset.id === j.id) return;       // لا نعيد بناء SVG بلا داعٍ
+  portrait.dataset.id = j.id;
+  portrait.innerHTML = judgeSilhouette(j.id);
 }
 
 /** بطاقة الدعوة تظهر ما دام الخصم لم يصل. */
@@ -160,26 +167,51 @@ const PHASE_LABELS = {
 };
 const phaseLabel = (p) => PHASE_LABELS[p] ?? '—';
 
-function renderHand(state) {
-  const wrap = $('#hand');
-  wrap.innerHTML = '';
+const AR_NUM = ['٠', '١', '٢', '٣', '٤'];
+
+/** متى يجوز الرمي؟ أثناء مرافعة الخصم فقط. */
+function throwState(state) {
   const t = state.trial;
-
-  for (const card of state.me.hand) {
-    const btn = el('button', 'play-card');
-    btn.type = 'button';
-    btn.disabled = card.spent || !t || t.phase === 'case' || t.phase === 'verdict';
-    if (card.spent) btn.classList.add('spent');
-
-    btn.append(el('span', 'play-card-glyph', card.glyph));
-    const body = el('div', 'play-card-body');
-    body.append(el('strong', null, card.name));
-    body.append(el('small', null, card.content || card.brief));
-    btn.append(body);
-
-    btn.addEventListener('click', () => send('play-card', { cardId: card.id }));
-    wrap.append(btn);
+  if (!t || t.phase === 'case' || t.phase === 'verdict') {
+    return { can: false, reason: 'لا مرافعة جارية' };
   }
+  if (t.isMyTurn) return { can: false, reason: 'دورك أنت — السلاح يُرمى على المترافع' };
+  if (t.imposed) return { can: false, reason: 'رميتَ سلاحاً في هذه المرافعة' };
+  return { can: true, reason: '' };
+}
+
+function renderWeapons(state) {
+  const left = state.me.hand.filter((c) => !c.spent).length;
+  $('#weapons-left').textContent = `${AR_NUM[left] ?? left} أسلحة`;
+
+  const { can, reason } = throwState(state);
+
+  // خزانة مفتوحة بعد أن صار الدور دورك تحجب لوحة مرافعتك — تُغلق
+  if (isArmoryOpen() && !can) closeArmory();
+
+  $('#btn-weapons').classList.toggle('armed', can && left > 0);
+  $('#btn-weapons').disabled = left === 0;
+  $('#weapon-hint').textContent = can
+    ? 'خصمك يترافع — ارمِ الآن'
+    : (reason || 'تُرمى على خصمك أثناء مرافعته');
+
+  renderImposed(state);
+}
+
+/** القيد المرمي: الهدف يراه ليصارعه، والرامي يراه ليرقبه. */
+function renderImposed(state) {
+  const box = $('#imposed-card');
+  const im = state.trial?.imposed;
+  box.hidden = !im;
+  if (!im) return;
+
+  const card = state.me.hand.find((c) => c.id === im.cardId);
+  const onMe = im.on === state.me.id;
+  box.classList.toggle('on-me', onMe);
+  box.innerHTML = `
+    <span class="imposed-tag">${onMe ? 'قيدٌ عليك' : 'قيدٌ رميتَه'}</span>
+    <strong>${esc(card?.name ?? im.cardId)}</strong>
+    ${im.content ? `<em>«${esc(im.content)}»</em>` : ''}`;
 }
 
 function renderVerdict(state) {
@@ -287,6 +319,15 @@ function addLine(text, kind, extra = {}) {
 
 export function bindTrialUI() {
   bindInvite();
+  $('#btn-weapons').addEventListener('click', () => {
+    const { can, reason } = throwState(view ?? { trial: null, me: { hand: [] } });
+    openArmory(view?.me?.hand ?? [], {
+      canThrow: can,
+      reason,
+      onThrow: (cardId) => send('play-card', { cardId }),
+    });
+  });
+  $('#btn-armory-close').addEventListener('click', closeArmory);
   $('#btn-begin').addEventListener('click', () => send('advance'));
   $('#btn-start-trial').addEventListener('click', () => send('start-trial'));
   $('#btn-next-trial').addEventListener('click', () => send('next-trial'));

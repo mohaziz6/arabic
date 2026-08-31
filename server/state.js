@@ -82,7 +82,7 @@ export function startTrial(s, kase) {
     phaseIndex: 0,
     speeches: [],                 // { role, phase, transcript, cardId, judgement }
     scores: Object.fromEntries(Object.keys(s.players).map((id) => [id, 0])),
-    playedThisPhase: null,        // بطاقة لُعبت في المرحلة الحالية
+    imposed: null,                // قيد رُمي على المتحدّث الحالي
     pendingObjection: null,
     verdict: null,
   };
@@ -109,7 +109,10 @@ export function currentSpeaker(s) {
   return phase?.speaker ? playerByRole(s, phase.speaker) : null;
 }
 
-/** هل يجوز لهذا اللاعب أن يلعب هذه البطاقة الآن؟ */
+/**
+ * هل يجوز لهذا اللاعب أن يرمي هذه البطاقة الآن؟
+ * كل البطاقات أسلحة: تُرمى أثناء مرافعة الخصم لا في دورك.
+ */
 export function canPlayCard(s, playerId, cardId) {
   if (s.status !== 'trial') return { ok: false, error: 'لا توجد محاكمة جارية' };
   const player = s.players[playerId];
@@ -120,14 +123,16 @@ export function canPlayCard(s, playerId, cardId) {
   const phase = currentPhase(s);
   if (!phase?.speaker) return { ok: false, error: 'ليست مرحلة مرافعة' };
 
-  const speaking = currentSpeaker(s)?.id === playerId;
+  const target = currentSpeaker(s);
+  if (!target) return { ok: false, error: 'لا أحد يترافع الآن' };
+  if (target.id === playerId) {
+    return { ok: false, error: 'السلاح يُرمى على خصمك أثناء مرافعته لا في دورك' };
+  }
+
   if (CARD_BY_ID[cardId].interrupt) {
-    // الاعتراض يُلعب في دور الخصم لا في دورك
-    if (speaking) return { ok: false, error: 'الاعتراض يُلعب أثناء مرافعة خصمك' };
     if (s.trial.pendingObjection) return { ok: false, error: 'يوجد اعتراض قيد النظر' };
-  } else {
-    if (!speaking) return { ok: false, error: 'ليس دورك' };
-    if (s.trial.playedThisPhase) return { ok: false, error: 'لُعبت بطاقة في هذه المرافعة' };
+  } else if (s.trial.imposed) {
+    return { ok: false, error: 'رميتَ سلاحاً في هذه المرافعة' };
   }
   return { ok: true };
 }
@@ -137,15 +142,17 @@ export function playCard(s, playerId, cardId) {
   if (!check.ok) return { ...check, state: s };
 
   const card = s.players[playerId].hand.find((c) => c.id === cardId);
+  const target = currentSpeaker(s);
   card.spent = true;
 
   if (CARD_BY_ID[cardId].interrupt) {
     // يوقف مؤقّت الخصم حتى يفصل القاضي — وإلا صار الاعتراض سرقة وقت لا حجة
-    s.trial.pendingObjection = { by: playerId, cardId };
+    s.trial.pendingObjection = { by: playerId, cardId, on: target.id };
   } else {
-    s.trial.playedThisPhase = { by: playerId, cardId, content: card.content };
+    // القيد ظاهر للطرفين: الخصم يجب أن يراه ليصارعه
+    s.trial.imposed = { by: playerId, cardId, content: card.content, on: target.id };
   }
-  return { ok: true, state: s };
+  return { ok: true, state: s, target: target.id };
 }
 
 /** يسجّل مرافعة مُقيَّمة ويتقدّم للمرحلة التالية. */
@@ -154,19 +161,21 @@ export function submitSpeech(s, playerId, transcript, judgement) {
   if (currentSpeaker(s)?.id !== playerId) return { ok: false, error: 'ليس دورك', state: s };
 
   const phase = currentPhase(s);
-  const played = s.trial.playedThisPhase;
+  const imposed = s.trial.imposed;
 
   s.trial.speeches.push({
     role: s.players[playerId].role,
     playerId,
     phase: phase.id,
     transcript,
-    cardId: played?.cardId ?? null,
+    cardId: imposed?.cardId ?? null,
+    imposedBy: imposed?.by ?? null,
     judgement,
   });
 
+  // النقاط للمتحدّث: كسر القيد فربح، وعجز عنه فخسر — والرامي يقامر بذلك
   s.trial.scores[playerId] += judgement.score + (judgement.cardDelta ?? 0);
-  s.trial.playedThisPhase = null;
+  s.trial.imposed = null;
   s.trial.phaseIndex += 1;
   return { ok: true, state: s };
 }
@@ -244,8 +253,7 @@ export function viewFor(s, viewerId) {
       isMyTurn: currentSpeaker(s)?.id === viewerId,
       scores: s.trial.scores,
       speeches: s.trial.speeches,
-      playedThisPhase:
-        s.trial.playedThisPhase?.by === viewerId ? s.trial.playedThisPhase : null,
+      imposed: s.trial.imposed,          // ظاهر للطرفين: الهدف يصارعه والرامي يرقبه
       pendingObjection: s.trial.pendingObjection,
       verdict: s.trial.verdict,
     },

@@ -107,10 +107,10 @@ export async function judgeSpeech({ kase, role, phase, transcript, card, judgeId
 
   const roleLabel = role === 'prosecutor' ? 'المدعي العام' : 'محامي الدفاع';
   const cardText = card
-    ? `\n\nلعب هذا المتحدّث بطاقة «${CARD_BY_ID[card.cardId].name}»: ${
-        CARD_BY_ID[card.cardId].brief}${card.content ? `\nالمطلوب إدخاله: ${card.content}` : ''}
-احكم في cardFulfilled هل نفّذها فعلاً.`
-    : '\n\nلم يلعب بطاقة — اجعل cardFulfilled = true.';
+    ? `\n\nرمى الخصمُ على هذا المتحدّث قيداً: «${CARD_BY_ID[card.cardId].name}» — ${
+        CARD_BY_ID[card.cardId].onTarget}${card.content ? `\nالمطلوب إدخاله: ${card.content}` : ''}
+احكم في cardFulfilled هل التزم المتحدّث بالقيد فعلاً.`
+    : '\n\nلم يُرمَ عليه قيد — اجعل cardFulfilled = true.';
 
   return ask(
     SpeechSchema,

@@ -95,10 +95,13 @@ test('محاكمة كاملة بين لاعبَين تنتهي بحكم', async 
     assert.equal(second.state.trial.speeches.length, 0);
   });
 
-  await t.test('بطاقة البيت تُلعب وتُقيَّم', async () => {
-    first.send('play-card', { cardId: 'bayt' });
-    assert.ok(await until(() => first.state.trial.playedThisPhase?.cardId === 'bayt'));
-    assert.equal(second.state.trial.playedThisPhase, null, 'الخصم لا يراها');
+  await t.test('السلاح يُرمى على المترافع ويراه الطرفان', async () => {
+    // الرامي هو من ليس دوره
+    second.send('play-card', { cardId: 'bayt' });
+    assert.ok(await until(() => second.state.trial.imposed?.cardId === 'bayt'), 'رُمي');
+    assert.ok(await until(() => first.state.trial.imposed?.cardId === 'bayt'),
+      'الهدف يراه ليصارعه');
+    assert.equal(first.state.trial.imposed.on, first.id, 'مُوجَّه إليه هو');
   });
 
   // أربع مرافعات
@@ -118,13 +121,40 @@ test('محاكمة كاملة بين لاعبَين تنتهي بحكم', async 
     assert.equal(Object.values(a.state.wins).reduce((x, y) => x + y, 0), 1);
   });
 
-  await t.test('البطاقة المستهلكة لا تُلعب ثانيةً', async () => {
-    const errs = first.errors.length;
-    first.send('play-card', { cardId: 'bayt' });
-    await settle();
-    assert.ok(first.errors.length > errs, 'رُفضت');
-  });
+  a.ws.close(); b.ws.close();
+});
 
+test('البطاقة المستهلكة لا تُرمى ثانيةً — أثناء مرافعة جارية', async () => {
+  const a = client(); await a.open;
+  a.send('create', { name: 'أ' });
+  await until(() => a.state?.code);
+  const b = client(); await b.open;
+  b.send('join', { code: a.state.code, name: 'ب' });
+  await until(() => b.state?.me);
+
+  a.send('start-trial');
+  await until(() => a.state?.trial?.case);
+  a.send('advance');
+  await until(() => a.state?.trial?.phase === 'opening-pros');
+
+  const speaker = a.state.trial.isMyTurn ? a : b;
+  const thrower = speaker === a ? b : a;
+
+  thrower.send('play-card', { cardId: 'bayt' });
+  assert.ok(await until(() => thrower.state.trial.imposed?.cardId === 'bayt'), 'رُميت');
+
+  // تُنهى المرافعة ليعود الرامي رامياً في مرافعة تالية
+  speaker.send('speech', { transcript: 'مرافعة فيها كلام مفهوم عن القضية والدليل' });
+  await until(() => a.state.trial.phase === 'opening-def');
+  speaker.send('speech', { transcript: 'ردّ فيه كلام مفهوم عن القضية والدليل كذلك' });
+  await settle(500);
+
+  // الآن مرحلة ردّ الادعاء: الرامي الأول صار في موضع الرمي ثانيةً وبطاقته مصروفة
+  const errs = thrower.errors.length;
+  thrower.send('play-card', { cardId: 'bayt' });
+  await settle(400);
+  assert.ok(thrower.errors.length > errs, 'رُفضت لأنها مستهلكة');
+  assert.ok(thrower.errors.at(-1).includes('مستهلكة'), `السبب: ${thrower.errors.at(-1)}`);
   a.ws.close(); b.ws.close();
 });
 

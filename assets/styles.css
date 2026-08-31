@@ -807,55 +807,6 @@ input.code {
 .mark.plus { background: #e9f2ea; color: #3d6b45; }
 .mark.minus { background: #fbeae5; color: #8a3f1c; }
 
-/* البطاقات */
-
-.hand-title { font-size: 13px; color: var(--muted); margin: 0 0 10px; font-weight: 600; }
-.hand { display: flex; flex-direction: column; gap: 9px; }
-
-.play-card {
-  display: flex;
-  align-items: flex-start;
-  gap: 11px;
-  width: 100%;
-  padding: 12px 14px;
-  text-align: start;
-  font: inherit;
-  color: inherit;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--white);
-  box-shadow: var(--shadow-sm);
-  cursor: pointer;
-  transition: transform 0.18s var(--ease), border-color 0.2s, box-shadow 0.2s;
-}
-
-.play-card:hover:not(:disabled) {
-  transform: translateY(-2px);
-  border-color: var(--gold);
-  box-shadow: var(--shadow-md);
-}
-
-.play-card:disabled { cursor: not-allowed; opacity: 0.5; }
-.play-card.spent { background: var(--sand-100); box-shadow: none; }
-.play-card.spent .play-card-body strong { text-decoration: line-through; }
-
-.play-card-glyph {
-  flex: none;
-  width: 32px;
-  height: 36px;
-  display: grid;
-  place-items: center;
-  border: 1.5px solid var(--gold-soft);
-  border-radius: 50% 50% 6px 6px / 56% 56% 6px 6px;
-  background: var(--gold-tint);
-  font-weight: 700;
-  font-size: 15px;
-  color: var(--gold-deep);
-}
-
-.play-card-body strong { display: block; font-size: 14px; font-weight: 600; }
-.play-card-body small { display: block; color: var(--muted); font-size: 12px; line-height: 1.65; margin-top: 2px; }
-
 @media (max-width: 820px) {
   .court { grid-template-columns: 1fr; }
   .bench { grid-template-columns: 1fr auto 1fr; gap: 8px; padding: 13px; }
@@ -997,27 +948,353 @@ input.code {
 .judge-draw-brief { color: #f1e7d3; font-size: 15px; margin: 0 0 6px; min-height: 1.2em; }
 .judge-draw-warn { color: #d9c79c; font-size: 13px; margin: 0; min-height: 1.2em; }
 
-/* شارة القاضي في شاشة المحاكمة */
-
-.judge-badge {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 15px;
-  margin-bottom: 14px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: linear-gradient(90deg, var(--gold-tint), var(--white) 60%);
-  box-shadow: var(--shadow-sm);
-}
-
-.judge-badge .judge-fig { width: 34px; margin: 0; flex: none; }
-.judge-badge-text strong { display: block; font-size: 14.5px; font-weight: 600; }
-.judge-badge-text small { color: var(--muted); font-size: 12.5px; }
-
 @media (max-width: 620px) {
   .judge-deck { gap: 9px; }
   .judge-card-inner { padding: 14px 6px 12px; }
   .judge-meta strong { font-size: 17px; }
   .judge-meta small { font-size: 10.5px; }
 }
+
+/* ═══════════ منصّة القاضي ═══════════ */
+
+.bench { grid-template-columns: 1fr minmax(210px, 250px) 1fr; align-items: start; }
+
+.bench-mid { position: relative; text-align: center; padding-top: 4px; }
+
+/* تمثال نصفي في قوس طيني: الرأس والكتفان، والباقي يقطعه الإطار */
+.judge-portrait {
+  width: 104px;
+  height: 0;                       /* لا يحجز فراغاً قبل القرعة */
+  margin: 0 auto;
+  overflow: hidden;
+  border-radius: 50% 50% 10px 10px / 58% 58% 10px 10px;
+  background: radial-gradient(125% 95% at 50% 14%, #f8efdb, #ddcdaa);
+  border: 1.5px solid var(--gold);
+  box-shadow: inset 0 -14px 26px rgba(90, 72, 40, 0.25), var(--shadow-sm);
+  display: grid;
+  place-items: start center;       /* الرأس ظاهر، والثوب يقطعه الإطار */
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.45s var(--ease), transform 0.45s var(--ease);
+}
+
+#judge-seat.seated .judge-portrait { opacity: 1; transform: none; height: 108px; }
+.judge-portrait .judge-fig { width: 96px; margin: 6px 0 0; }
+
+.judge-plate {
+  position: relative;
+  display: none;
+  z-index: 1;
+  padding: 5px 16px 6px;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #33291a, #1e1810);
+  color: #f2e7d0;
+  box-shadow: 0 6px 16px -8px rgba(0, 0, 0, 0.6);
+  opacity: 0;
+  transition: opacity 0.5s var(--ease) 0.1s;
+}
+
+#judge-seat.seated .judge-plate { opacity: 1; display: inline-block; }
+#judge-seat .judge-plate { margin-top: -3px; }
+#judge-seat .phase { margin-top: 12px; }
+.judge-plate strong { display: block; font-family: 'Aref Ruqaa', serif; font-size: 18px; line-height: 1.5; }
+.judge-plate small { display: block; color: #c3b391; font-size: 11px; }
+
+/* حافة الطاولة: القاضي خلفها واللوحة عليها */
+.bench-rail {
+  height: 11px;
+  margin: -2px -16px 0;
+  position: relative;
+  z-index: 1;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #7a6242, #382d1d);
+  box-shadow: 0 5px 14px -5px rgba(60, 45, 25, 0.65);
+}
+
+/* ═══════════ زر السلاح ═══════════ */
+
+.weapon-btn {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  width: 100%;
+  padding: 16px 18px;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  border-radius: var(--radius);
+  border: 1.5px solid var(--line-strong);
+  background: linear-gradient(150deg, #2b2216, #16110a);
+  color: #f4ead3;
+  box-shadow: var(--shadow-md);
+  transition: transform 0.2s var(--ease), border-color 0.25s, box-shadow 0.25s;
+}
+
+.weapon-btn:hover:not(:disabled) { transform: translateY(-2px); border-color: var(--gold); }
+.weapon-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* حين يجوز الرمي، ينبض الزر */
+.weapon-btn.armed {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(192, 138, 62, 0.22), var(--shadow-md);
+  animation: armed-pulse 2.1s ease-in-out infinite;
+}
+
+@keyframes armed-pulse {
+  50% { box-shadow: 0 0 0 7px rgba(192, 138, 62, 0.1), var(--shadow-md); }
+}
+
+@media (prefers-reduced-motion: reduce) { .weapon-btn.armed { animation: none; } }
+
+.weapon-btn-glyph {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: rgba(230, 201, 136, 0.14);
+  border: 1px solid rgba(230, 201, 136, 0.4);
+  color: var(--gold-400, #e6c988);
+}
+
+.weapon-btn-text strong { display: block; font-family: 'Aref Ruqaa', serif; font-size: 21px; line-height: 1.5; }
+.weapon-btn-text small { display: block; color: #bfae8b; font-size: 12px; }
+
+.weapon-hint { color: var(--muted); font-size: 12.5px; margin: 9px 2px 0; line-height: 1.7; }
+
+/* القيد المرمي */
+
+.imposed-card {
+  margin-top: 14px;
+  padding: 13px 15px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--gold-soft);
+  background: var(--gold-tint);
+  box-shadow: var(--shadow-sm);
+}
+
+.imposed-card.on-me { border-color: var(--clay); background: #fdf1ec; }
+
+.imposed-tag {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: rgba(180, 101, 58, 0.14);
+  color: #8a3f1c;
+  margin-bottom: 7px;
+}
+
+.imposed-card strong { display: block; font-size: 15px; }
+.imposed-card em { display: block; color: var(--ink-soft); font-size: 13px; line-height: 1.8; margin-top: 5px; font-style: normal; }
+
+/* ═══════════ خزانة الأسلحة ═══════════ */
+
+.armory {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  padding: 22px;
+  background: rgba(24, 18, 10, 0.62);
+  backdrop-filter: blur(9px);
+  opacity: 0;
+  transition: opacity 0.3s var(--ease);
+}
+
+.armory.is-open { opacity: 1; }
+
+.armory-box { width: min(880px, 100%); text-align: center; }
+.armory-box .najdi-band { width: 170px; margin: 0 auto 16px; }
+
+.armory-box h2 {
+  font-family: 'Aref Ruqaa', serif;
+  font-size: clamp(26px, 5vw, 40px);
+  color: #fdf6e8;
+  margin: 0 0 4px;
+}
+
+.armory-sub { color: #d7c8a8; font-size: 14px; margin: 0 0 22px; }
+
+.armory-deck {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.armory-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 18px 12px 14px;
+  font: inherit;
+  text-align: center;
+  cursor: pointer;
+  border-radius: var(--radius);
+  border: 1px solid var(--line-strong);
+  background: linear-gradient(180deg, #fffdf8, #f1e8d5);
+  color: var(--ink);
+  box-shadow: 0 18px 40px -18px rgba(0, 0, 0, 0.55);
+  opacity: 0;
+  transform: translateY(38px) scale(0.94);
+  transition:
+    opacity 0.3s var(--ease), transform 0.36s var(--ease),
+    border-color 0.2s, box-shadow 0.2s;
+}
+
+.armory-card.dealt { opacity: 1; transform: none; }
+
+.armory-card:hover:not(:disabled) {
+  transform: translateY(-8px);
+  border-color: var(--gold);
+  box-shadow: 0 0 0 2px var(--gold), 0 24px 46px -18px rgba(0, 0, 0, 0.6);
+}
+
+.armory-card:disabled { cursor: not-allowed; }
+.armory-card.spent { filter: grayscale(0.9); opacity: 0.42; }
+
+/* لحظة الرمي: البطاقة تنطلق نحو الخصم */
+.armory-card.thrown {
+  animation: card-throw 0.32s var(--ease) forwards;
+}
+
+@keyframes card-throw {
+  to { transform: translateY(-120px) scale(0.5) rotate(-14deg); opacity: 0; }
+}
+
+.card-art { width: 62px; height: auto; color: var(--ink); }
+.card-art .ink { fill: #3a2e1c; }
+.card-art .ink-dark { fill: #1e1710; }
+.card-art .strings { stroke: #1e1710; }
+
+.armory-card strong { font-family: 'Aref Ruqaa', serif; font-size: 19px; line-height: 1.5; }
+.armory-card small { color: var(--muted); font-size: 12px; line-height: 1.65; }
+
+.armory-content {
+  display: block;
+  margin-top: 5px;
+  font-style: normal;
+  font-size: 11.5px;
+  line-height: 1.7;
+  color: var(--gold-deep);
+}
+
+.armory-mark {
+  margin-top: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--sand-100);
+  color: var(--ink-soft);
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+/* ═══════════ إعلان الرمية ═══════════ */
+
+.strike {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  pointer-events: none;
+  background: rgba(24, 18, 10, 0.5);
+  opacity: 0;
+  transition: opacity 0.32s var(--ease);
+}
+
+.strike.is-open { opacity: 1; }
+.strike.at-me { background: rgba(96, 38, 16, 0.55); }
+
+.strike-inner {
+  text-align: center;
+  padding: 30px 34px;
+  border-radius: var(--radius);
+  border: 2px solid var(--gold);
+  background: linear-gradient(180deg, #fffdf8, #efe4cd);
+  box-shadow: 0 30px 70px -24px rgba(0, 0, 0, 0.7);
+  transform: scale(0.7) rotate(-5deg);
+  transition: transform 0.42s cubic-bezier(0.18, 1.5, 0.5, 1);
+  max-width: 460px;
+}
+
+.strike.is-open .strike-inner { transform: none; }
+.strike.at-me .strike-inner { border-color: var(--clay); }
+
+.strike-glyph .card-art { width: 84px; }
+
+.strike-inner h3 {
+  font-family: 'Aref Ruqaa', serif;
+  font-size: clamp(21px, 4vw, 30px);
+  margin: 8px 0 8px;
+  line-height: 1.6;
+}
+
+.strike-inner p { color: var(--ink-soft); font-size: 14.5px; line-height: 1.9; margin: 0; white-space: pre-line; }
+
+/* ═══════════ لوحة القضية — أحدّ وأبرز ═══════════ */
+
+.panel.case {
+  position: relative;
+  overflow: hidden;
+  padding: 26px 26px 22px;
+  border-color: var(--line-strong);
+  background:
+    radial-gradient(130% 100% at 100% 0%, var(--gold-tint), transparent 58%),
+    var(--white);
+  box-shadow: var(--shadow-md);
+}
+
+/* حافة ذهبية على طرف اللوحة */
+.panel.case::before {
+  content: '';
+  position: absolute;
+  inset-inline-start: 0;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+  background: linear-gradient(180deg, var(--gold), var(--clay));
+}
+
+/* شريط النقش النجدي في أعلى اللوحة */
+.panel.case::after {
+  content: '';
+  position: absolute;
+  inset-inline-end: 22px;
+  top: 0;
+  width: 118px;
+  height: 8px;
+  background-image:
+    linear-gradient(135deg, var(--gold-soft) 25%, transparent 25%),
+    linear-gradient(225deg, var(--gold-soft) 25%, transparent 25%);
+  background-size: 12px 12px;
+  background-repeat: repeat-x;
+}
+
+.panel.case h3 { font-size: clamp(26px, 4vw, 36px); letter-spacing: -0.5px; }
+.panel.case .case-defendant { font-size: 15px; }
+
+.panel.case .case-facts {
+  border-inline-start: 2px solid var(--gold-soft);
+  padding-inline-start: 13px;
+  color: var(--ink-soft);
+  font-size: 14.5px;
+}
+
+@media (max-width: 820px) {
+  .bench { grid-template-columns: 1fr; }
+  .bench-mid { order: -1; }
+  .armory-deck { grid-template-columns: repeat(2, 1fr); }
+}
+
+.weapon-btn-glyph svg { width: 24px; height: 24px; }
+.weapon-btn-glyph svg path { fill: currentColor; }
