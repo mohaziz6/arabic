@@ -4,6 +4,8 @@
  */
 
 import { startListening, speak, speechSupported } from './speech.js';
+import { revealJudge } from './judge-reveal.js';
+import { judgeSilhouette } from './judge-art.js';
 
 const $ = (s) => document.querySelector(s);
 const el = (tag, cls, text) => {
@@ -15,6 +17,7 @@ const el = (tag, cls, text) => {
 
 let ws = null;
 let view = null;
+let judges = [];
 let mic = null;
 let timer = null;
 let secondsLeft = 0;
@@ -31,7 +34,8 @@ export function connect({ mode, name, code, onJoined, onError }) {
 
   ws.addEventListener('message', (ev) => {
     const m = JSON.parse(ev.data);
-    if (m.type === 'joined') onJoined?.(m);
+    if (m.type === 'joined') { judges = m.judges ?? []; onJoined?.(m); }
+    else if (m.type === 'judge-draw') { judges = m.judges; revealJudge(m.judges, m.chosen); }
     else if (m.type === 'state') render(m.state);
     else if (m.type === 'judge') onJudge(m);
     else if (m.type === 'error') onError?.(m.error);
@@ -53,6 +57,7 @@ function render(state) {
 
   $('#trial-code').textContent = state.code;
   renderInvite(state);
+  renderJudgeBadge(state);
   $('#score-me').textContent = state.trial?.scores?.[state.me.id] ?? 0;
   $('#score-opp').textContent = state.opponent ? (state.trial?.scores?.[state.opponent.id] ?? 0) : 0;
   $('#wins-me').textContent = state.wins?.[state.me.id] ?? 0;
@@ -73,6 +78,22 @@ function render(state) {
 }
 
 const roleLabel = (r) => (r === 'prosecutor' ? 'المدعي العام' : 'محامي الدفاع');
+
+/** شارة القاضي: من يحكم هذه الجلسة، وبم يُرضى. */
+function renderJudgeBadge(state) {
+  const badge = $('#judge-badge');
+  const j = judges.find((x) => x.id === state.judgeId);
+  badge.hidden = !j;
+  if (!j) return;
+  if (badge.dataset.id === j.id) return;          // لا نعيد بناء SVG بلا داعٍ
+  badge.dataset.id = j.id;
+  badge.innerHTML = `
+    ${judgeSilhouette(j.id)}
+    <div class="judge-badge-text">
+      <strong>${j.name}</strong>
+      <small>${j.brief}</small>
+    </div>`;
+}
 
 /** بطاقة الدعوة تظهر ما دام الخصم لم يصل. */
 function renderInvite(state) {

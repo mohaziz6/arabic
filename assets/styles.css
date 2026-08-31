@@ -892,3 +892,132 @@ input.code {
 }
 
 #btn-copy-link { flex: none; }
+
+/* ═══════════ قرعة القاضي ═══════════ */
+
+.judge-draw {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(28, 22, 14, 0.55);
+  backdrop-filter: blur(8px);
+  opacity: 0;
+  transition: opacity 0.4s var(--ease);
+}
+
+.judge-draw.is-open { opacity: 1; }
+
+.judge-draw-box { width: min(760px, 100%); text-align: center; }
+
+.judge-draw-box h2 {
+  font-family: 'Aref Ruqaa', serif;
+  font-size: clamp(24px, 4.5vw, 36px);
+  color: #fdf6e8;
+  margin: 0 0 22px;
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.4);
+}
+
+.judge-deck {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.judge-card {
+  opacity: 0;
+  transform: translateY(-120px) rotate(calc(var(--i) * 5deg - 5deg));
+  transition:
+    opacity 0.35s var(--ease),
+    transform 0.45s var(--ease),
+    filter 0.25s;
+}
+
+.judge-card.dealt { opacity: 1; transform: none; }
+
+.judge-card-inner {
+  padding: 20px 12px 16px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line-strong);
+  background: linear-gradient(180deg, #fffdf8, #f2ead9);
+  box-shadow: 0 18px 40px -18px rgba(0, 0, 0, 0.55);
+  transition: box-shadow 0.22s, border-color 0.22s, transform 0.22s var(--ease);
+}
+
+/* النور الدائر */
+.judge-card.lit .judge-card-inner {
+  border-color: var(--gold);
+  box-shadow:
+    0 0 0 3px rgba(230, 201, 136, 0.75),
+    0 0 46px 6px rgba(230, 201, 136, 0.55),
+    0 18px 40px -18px rgba(0, 0, 0, 0.55);
+  transform: translateY(-6px);
+}
+
+.judge-card.dimmed { filter: grayscale(0.85) brightness(0.62); opacity: 0.5; }
+
+.judge-card.won .judge-card-inner {
+  border-color: var(--gold);
+  transform: translateY(-12px) scale(1.06);
+  box-shadow:
+    0 0 0 3px var(--gold),
+    0 0 70px 12px rgba(230, 201, 136, 0.65),
+    0 26px 54px -20px rgba(0, 0, 0, 0.6);
+  animation: judge-won 0.55s var(--ease);
+}
+
+@keyframes judge-won {
+  40% { transform: translateY(-18px) scale(1.12); }
+}
+
+.judge-fig { width: 100%; max-width: 108px; height: auto; display: block; margin: 0 auto 8px; }
+.judge-fig .robe { fill: #322718; }
+.judge-fig .fold { fill: #1d1710; opacity: 0.5; }
+.judge-fig .bisht { fill: #14100a; }
+.judge-fig .bisht-edge { fill: #3a2f1e; }
+.judge-fig .ghutra { fill: #5a4930; }
+.judge-fig .iqal { fill: #0f0d08; }
+
+.judge-card.won .judge-fig .ghutra { fill: #7d6540; }
+
+.judge-meta strong { display: block; font-family: 'Aref Ruqaa', serif; font-size: 22px; }
+.judge-meta small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+
+.judge-draw-name {
+  font-family: 'Aref Ruqaa', serif;
+  font-size: clamp(22px, 4vw, 32px);
+  color: var(--gold-400, #e6c988);
+  margin: 0 0 6px;
+  min-height: 1.4em;
+}
+
+.judge-draw-brief { color: #f1e7d3; font-size: 15px; margin: 0 0 6px; min-height: 1.2em; }
+.judge-draw-warn { color: #d9c79c; font-size: 13px; margin: 0; min-height: 1.2em; }
+
+/* شارة القاضي في شاشة المحاكمة */
+
+.judge-badge {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 15px;
+  margin-bottom: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: linear-gradient(90deg, var(--gold-tint), var(--white) 60%);
+  box-shadow: var(--shadow-sm);
+}
+
+.judge-badge .judge-fig { width: 34px; margin: 0; flex: none; }
+.judge-badge-text strong { display: block; font-size: 14.5px; font-weight: 600; }
+.judge-badge-text small { color: var(--muted); font-size: 12.5px; }
+
+@media (max-width: 620px) {
+  .judge-deck { gap: 9px; }
+  .judge-card-inner { padding: 14px 6px 12px; }
+  .judge-meta strong { font-size: 17px; }
+  .judge-meta small { font-size: 10.5px; }
+}

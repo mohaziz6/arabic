@@ -17,6 +17,7 @@ export function createSession(code, hostId, hostName) {
       [hostId]: newPlayer(hostId, hostName, ROLES.PROSECUTOR),
     },
     hostId,
+    judgeId: null,               // يُنتقى بالقرعة قبل المحاكمة الأولى ويظل للجلسة
     trialNo: 0,
     wins: { [hostId]: 0 },
     trial: null,
@@ -221,6 +222,7 @@ export function viewFor(s, viewerId) {
   return {
     code: s.code,
     status: s.status,
+    judgeId: s.judgeId,
     trialNo: s.trialNo,
     wins: s.wins,
     winnerId: s.winnerId,

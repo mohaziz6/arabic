@@ -12,7 +12,7 @@ let proc;
 
 before(async () => {
   proc = spawn('node', ['server/index.js'], {
-    env: { ...process.env, PORT: String(PORT), ANTHROPIC_API_KEY: '' },
+    env: { ...process.env, PORT: String(PORT), ANTHROPIC_API_KEY: '', REVEAL_MS: '0' },
     stdio: 'ignore',
   });
   for (let i = 0; i < 60; i++) {
@@ -213,4 +213,39 @@ test('الإغراق بالرسائل يُكبح قبل أن يصير فاتور
   for (let i = 0; i < 90; i++) c.send('start-trial');
   assert.ok(await until(() => c.errors.some((e) => e.includes('تمهّل'))), 'كُبح');
   c.ws.close();
+});
+
+test('القرعة تصل اللاعبَين، والقاضي يثبت للجلسة كلها', async () => {
+  const a = client(); await a.open;
+  a.send('create', { name: 'أ' });
+  await until(() => a.state?.code);
+  const b = client(); await b.open;
+  b.send('join', { code: a.state.code, name: 'ب' });
+  await until(() => b.state?.me);
+
+  assert.equal(a.state.judgeId, null, 'لا قاضي قبل رفع الجلسة');
+
+  a.send('start-trial');
+  assert.ok(await until(() => a.state?.judgeId), 'أُجريت القرعة');
+  const chosen = a.state.judgeId;
+
+  assert.ok(await until(() => b.state?.judgeId === chosen), 'الخصم يرى نفس القاضي');
+  assert.ok(['mizan', 'reeh', 'urf'].includes(chosen), 'قاضٍ معروف');
+
+  // القضية الثانية لا تعيد القرعة
+  await until(() => a.state?.trial?.case);
+  a.send('advance');
+  await until(() => a.state?.trial?.phase === 'opening-pros');
+  for (let i = 0; i < 4; i++) {
+    const turn = a.state.trial.isMyTurn ? a : b;
+    const before = turn.state.trial.speeches.length;
+    turn.send('speech', { transcript: 'حجة كافية فيها كلام مفهوم عن القضية' });
+    await until(() => turn.state.trial.speeches.length > before);
+  }
+  await until(() => a.state.trial.verdict);
+
+  a.send('next-trial');
+  assert.ok(await until(() => a.state.trialNo === 2));
+  assert.equal(a.state.judgeId, chosen, 'القاضي نفسه لا يتبدّل بين القضايا');
+  a.ws.close(); b.ws.close();
 });

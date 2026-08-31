@@ -17,6 +17,7 @@ import * as S from './state.js';
 import * as judge from './judge.js';
 import { CARD_BY_ID } from './rules.js';
 import { loadEnv, lanAddress, ensureCert } from './setup.js';
+import { pickJudge, publicJudges, JUDGE_BY_ID } from './judges.js';
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const envFileUsed = loadEnv(ROOT);
@@ -66,6 +67,10 @@ const server = USE_HTTPS
 
 /* ─────────── الغرف ─────────── */
 
+/** مدة انميشن القرعة في المتصفح — الخادم ينتظرها قبل عرض القضية.
+ *  تُصفَّر في الاختبارات فلا تُبطئها. */
+const REVEAL_MS = process.env.REVEAL_MS !== undefined ? Number(process.env.REVEAL_MS) : 6400;
+
 const rooms = new Map();          // code -> { state, sockets: Map<playerId, ws> }
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
@@ -109,10 +114,20 @@ async function beginTrial(room) {
   room.busy = true;
   const previous = room.pastCharges ?? [];
 
+  // القرعة مرة واحدة للجلسة: القاضي لا يتبدّل بين قضاياها
+  if (!st.judgeId) {
+    st.judgeId = pickJudge();
+    broadcast(room);
+    for (const ws of room.sockets.values()) {
+      send(ws, 'judge-draw', { judges: publicJudges(), chosen: st.judgeId });
+    }
+    if (REVEAL_MS > 0) await new Promise((r) => setTimeout(r, REVEAL_MS));
+  }
+
   announce(room, 'المحكمة تنعقد… القاضي ينظر في الأوراق.', { thinking: true });
   let kase;
   try {
-    ({ data: kase } = await judge.generateCase(previous));
+    ({ data: kase } = await judge.generateCase(previous, st.judgeId));
   } catch (err) {
     room.busy = false;
     announce(room, `تعذّر عرض القضية: ${err.message} — أعد المحاولة.`);
@@ -152,6 +167,7 @@ async function handleSpeech(room, playerId, transcript) {
       phase: phase.id,
       transcript,
       card: played ? { cardId: played.cardId, content: played.content } : null,
+      judgeId: st.judgeId,
     });
     const card = played ? CARD_BY_ID[played.cardId] : null;
     judgement = {
@@ -197,6 +213,7 @@ async function concludeTrial(room) {
       speeches: st.trial.speeches,
       scores,
       names: { prosecutor: pros.name, defender: def.name },
+      judgeId: st.judgeId,
     }));
   } catch (err) {
     room.busy = false;
@@ -226,6 +243,7 @@ async function handleObjection(room, playerId) {
     const { data } = await judge.judgeObjection({
       kase: st.trial.case,
       transcript: room.liveTranscript ?? '',
+      judgeId: st.judgeId,
     });
     sustained = data.sustained;
     S.resolveObjection(st, sustained);
@@ -285,7 +303,7 @@ wss.on('connection', (ws) => {
           room = { state, sockets: new Map(), pastCharges: [] };
           room.sockets.set(playerId, ws);
           rooms.set(code, room);
-          send(ws, 'joined', { playerId, code });
+          send(ws, 'joined', { playerId, code, judges: publicJudges() });
           broadcast(room);
           break;
         }
@@ -309,7 +327,7 @@ wss.on('connection', (ws) => {
             if (!added.ok) { send(ws, 'error', { error: added.error }); room = null; break; }
           }
           room.sockets.set(playerId, ws);
-          send(ws, 'joined', { playerId, code });
+          send(ws, 'joined', { playerId, code, judges: publicJudges() });
           broadcast(room);
           announce(room, 'اكتمل الخصمان. ارفعوا الجلسة متى شئتم.');
           break;
