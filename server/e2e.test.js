@@ -279,3 +279,60 @@ test('القرعة تصل اللاعبَين، والقاضي يثبت للجل�
   assert.equal(a.state.judgeId, chosen, 'القاضي نفسه لا يتبدّل بين القضايا');
   a.ws.close(); b.ws.close();
 });
+
+test('الدور ينتقل فوراً بلا انتظار القاضي، والنقاط تلحق', async () => {
+  const a = client(); await a.open;
+  a.send('create', { name: 'أ' });
+  await until(() => a.state?.code);
+  const b = client(); await b.open;
+  b.send('join', { code: a.state.code, name: 'ب' });
+  await until(() => b.state?.me);
+
+  a.send('start-trial');
+  await until(() => a.state?.trial?.case);
+  a.send('advance');
+  await until(() => a.state?.trial?.phase === 'opening-pros');
+
+  const first = a.state.trial.isMyTurn ? a : b;
+  const second = first === a ? b : a;
+
+  const t0 = Date.now();
+  first.send('speech', { transcript: 'مرافعة الادعاء فيها حجة مفهومة وكلام عن القضية' });
+  assert.ok(await until(() => second.state?.trial?.isMyTurn, 3000), 'انتقل الدور');
+  const handoff = Date.now() - t0;
+  assert.ok(handoff < 1500, `انتقال الدور سريع (${handoff}ms)`);
+
+  // المرافعة سُجّلت وحكمها يلحق بعدها
+  assert.equal(first.state.trial.speeches.length, 1);
+  assert.ok(await until(() => first.state.trial.speeches[0].judgement), 'وصل الحكم');
+  assert.ok(first.state.trial.scores[first.id] > 0, 'أُضيفت نقاطه');
+
+  a.ws.close(); b.ws.close();
+});
+
+test('الحكم النهائي لا يصدر قبل اكتمال تقييم كل المرافعات', async () => {
+  const a = client(); await a.open;
+  a.send('create', { name: 'أ' });
+  await until(() => a.state?.code);
+  const b = client(); await b.open;
+  b.send('join', { code: a.state.code, name: 'ب' });
+  await until(() => b.state?.me);
+
+  a.send('start-trial');
+  await until(() => a.state?.trial?.case);
+  a.send('advance');
+  await until(() => a.state?.trial?.phase === 'opening-pros');
+
+  for (let i = 0; i < 4; i++) {
+    const turn = a.state.trial.isMyTurn ? a : b;
+    const before = turn.state.trial.speeches.length;
+    turn.send('speech', { transcript: `مرافعة رقم ${i + 1} فيها حجة مفهومة عن القضية` });
+    assert.ok(await until(() => turn.state.trial.speeches.length > before));
+  }
+
+  assert.ok(await until(() => a.state.trial.verdict, 8000), 'صدر الحكم');
+  assert.equal(a.state.trial.speeches.length, 4);
+  assert.equal(a.state.trial.speeches.filter((s) => !s.judgement).length, 0,
+    'كل المرافعات مُقيَّمة قبل الحكم');
+  a.ws.close(); b.ws.close();
+});

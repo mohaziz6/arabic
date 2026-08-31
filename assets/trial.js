@@ -4,7 +4,7 @@
  */
 
 import { startListening, speak, speechSupported } from './speech.js';
-import { revealJudge } from './judge-reveal.js';
+import { revealJudge, announceVerdict } from './judge-reveal.js';
 import { judgeSilhouette } from './judge-art.js';
 import { openArmory, closeArmory, showStrike, isArmoryOpen } from './armory.js';
 
@@ -214,11 +214,27 @@ function renderImposed(state) {
     ${im.content ? `<em>«${esc(im.content)}»</em>` : ''}`;
 }
 
+let shownVerdictFor = null;
+
 function renderVerdict(state) {
   const box = $('#verdict-box');
   const v = state.trial?.verdict;
   box.hidden = !v;
   if (!v) return;
+
+  // النطق يُعرض مرة واحدة لكل محاكمة
+  const key = `${state.trialNo}`;
+  if (shownVerdictFor !== key) {
+    shownVerdictFor = key;
+    const winnerRole = v.winner;
+    const iWon = state.me.role === winnerRole;
+    announceVerdict({
+      guilty: v.guilty,
+      spoken: v.spoken,
+      winnerName: iWon ? state.me.name : (state.opponent?.name ?? 'خصمك'),
+      iWon,
+    });
+  }
   $('#verdict-spoken').textContent = v.spoken;
   $('#verdict-reasoning').textContent = v.reasoning;
 

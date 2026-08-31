@@ -15,7 +15,7 @@ import { WebSocketServer } from 'ws';
 
 import * as S from './state.js';
 import * as judge from './judge.js';
-import { CARD_BY_ID } from './rules.js';
+import { CARD_BY_ID, PHASE_LABELS } from './rules.js';
 import { loadEnv, lanAddress, ensureCert } from './setup.js';
 import { pickJudge, publicJudges, JUDGE_BY_ID } from './judges.js';
 
@@ -140,6 +140,7 @@ async function beginTrial(room) {
 
   const started = S.startTrial(st, kase);
   room.liveTranscript = '';
+  room.judging = [];
   room.busy = false;
   if (!started.ok) { announce(room, started.error); broadcast(room); return; }
 
@@ -147,51 +148,61 @@ async function beginTrial(room) {
   announce(room, `القضية: ${kase.charge}`, { case: kase });
 }
 
+/**
+ * يسجّل المرافعة ويتقدّم فوراً، ثم يقيّمها في الخلفية أثناء مرافعة الخصم.
+ * انتظارُ القاضي هنا كان يجمّد اللعبة أربع مرات في كل محاكمة.
+ */
 async function handleSpeech(room, playerId, transcript) {
   const st = room.state;
   const speaker = S.currentSpeaker(st);
   if (speaker?.id !== playerId) return;
-  if (room.busy) return;                 // مرافعة قيد التقييم — لا تُقيَّم مرتين
-  room.busy = true;
 
   const phase = S.currentPhase(st);
   const imposed = st.trial.imposed;
 
-  announce(room, 'القاضي ينظر في المرافعة…', { thinking: true });
+  const recorded = S.submitSpeech(st, playerId, transcript);
+  if (!recorded.ok) { send(room.sockets.get(playerId), 'error', { error: recorded.error }); return; }
 
-  let judgement;
-  try {
-    const { data } = await judge.judgeSpeech({
-      kase: st.trial.case,
-      role: speaker.role,
-      phase: phase.id,
-      transcript,
-      card: imposed ? { cardId: imposed.cardId, content: imposed.content } : null,
-      judgeId: st.judgeId,
-    });
-    const card = imposed ? CARD_BY_ID[imposed.cardId] : null;
-    judgement = {
-      score: data.score,
-      comment: data.comment,
-      cardId: imposed?.cardId ?? null,
-      cardFulfilled: imposed ? data.cardFulfilled : null,
-      cardDelta: imposed ? (data.cardFulfilled ? card.bonus : card.penalty) : 0,
-    };
-  } catch (err) {
-    room.busy = false;
-    // أعد بثّ الحالة وإلا بقي المترافع عالقاً بلا لوحة ولا مؤقّت
-    broadcast(room);
-    announce(room, `تعذّر تقييم المرافعة: ${err.message} — أعد إرسالها.`);
-    return;
-  }
-
-  const recorded = S.submitSpeech(st, playerId, transcript, judgement);
-  room.busy = false;
   room.liveTranscript = '';              // وإلا حُكم على اعتراضٍ بنصّ متحدّثٍ سابق
-  if (!recorded.ok) { broadcast(room); return; }
+  broadcast(room);                       // الدور ينتقل الآن، لا بعد الحكم
+  announce(room, `القاضي ينظر في ${PHASE_LABELS[phase.id]}…`, { thinking: true });
 
-  broadcast(room);
-  announce(room, judgement.comment, { score: judgement.score, cardDelta: judgement.cardDelta });
+  const task = (async () => {
+    try {
+      const { data } = await judge.judgeSpeech({
+        kase: st.trial.case,
+        role: speaker.role,
+        phase: phase.id,
+        transcript,
+        card: imposed ? { cardId: imposed.cardId, content: imposed.content } : null,
+        judgeId: st.judgeId,
+      });
+      const card = imposed ? CARD_BY_ID[imposed.cardId] : null;
+      S.applyJudgement(st, recorded.index, {
+        score: data.score,
+        comment: data.comment,
+        cardId: imposed?.cardId ?? null,
+        cardFulfilled: imposed ? data.cardFulfilled : null,
+        cardDelta: imposed ? (data.cardFulfilled ? card.bonus : card.penalty) : 0,
+      });
+      broadcast(room);
+      announce(room, data.comment, {
+        score: data.score,
+        cardDelta: imposed ? (data.cardFulfilled ? card.bonus : card.penalty) : 0,
+        who: speaker.name,
+      });
+    } catch (err) {
+      // درجة محايدة حتى لا تتعطّل الجلسة على عطل تقني
+      S.applyJudgement(st, recorded.index, {
+        score: 5, comment: `تعذّر تقييم هذه المرافعة (${err.message}) — قُدّرت بخمسٍ من عشر.`,
+        cardId: imposed?.cardId ?? null, cardFulfilled: null, cardDelta: 0,
+      });
+      broadcast(room);
+      announce(room, `تعذّر تقييم ${PHASE_LABELS[phase.id]} — قُدّرت بخمسٍ من عشر.`);
+    }
+  })();
+
+  room.judging = [...(room.judging ?? []), task];
 
   if (S.isTrialOver(st)) await concludeTrial(room);
 }
@@ -200,9 +211,17 @@ async function concludeTrial(room) {
   const st = room.state;
   if (room.busy) return;
   room.busy = true;
+
+  // الحكم النهائي يقرأ المحضر كاملاً، فلا يصدر قبل أن تكتمل كل التقييمات
+  if (S.pendingJudgements(st) > 0) {
+    announce(room, 'القاضي يستكمل مطالعة المحضر…', { thinking: true });
+    await Promise.allSettled(room.judging ?? []);
+  }
+  room.judging = [];
   const pros = S.playerByRole(st, 'prosecutor');
   const def = S.playerByRole(st, 'defender');
   const scores = { prosecutor: st.trial.scores[pros.id], defender: st.trial.scores[def.id] };
+  const speeches = st.trial.speeches.filter((sp) => sp.judgement);
 
   announce(room, 'القاضي يتداول…', { thinking: true });
 
@@ -210,7 +229,7 @@ async function concludeTrial(room) {
   try {
     ({ data: verdict } = await judge.deliverVerdict({
       kase: st.trial.case,
-      speeches: st.trial.speeches,
+      speeches,
       scores,
       names: { prosecutor: pros.name, defender: def.name },
       judgeId: st.judgeId,

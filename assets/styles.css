@@ -1298,3 +1298,74 @@ input.code {
 
 .weapon-btn-glyph svg { width: 24px; height: 24px; }
 .weapon-btn-glyph svg path { fill: currentColor; }
+
+/* ═══════════ النطق بالحكم ═══════════ */
+
+.gavel-scene {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  pointer-events: none;
+  background: rgba(22, 17, 9, 0.62);
+  backdrop-filter: blur(7px);
+  opacity: 0;
+  transition: opacity 0.4s var(--ease);
+}
+
+.gavel-scene.is-open { opacity: 1; }
+
+.gavel-box { text-align: center; width: min(560px, 100%); }
+
+/* الختم يهبط مع دقّة المطرقة */
+.gavel-stamp {
+  display: inline-block;
+  padding: 6px 34px 10px;
+  margin-bottom: 24px;
+  font-family: 'Aref Ruqaa', serif;
+  font-size: clamp(38px, 9vw, 70px);
+  line-height: 1.35;
+  border: 6px solid currentColor;
+  border-radius: 12px;
+  background: rgba(255, 250, 240, 0.14);
+  box-shadow: 0 0 0 2px rgba(255, 250, 240, 0.12) inset;
+  transform: scale(2.6) rotate(-16deg);
+  opacity: 0;
+  transition: transform 0.26s cubic-bezier(0.2, 1.4, 0.4, 1), opacity 0.18s;
+}
+
+.gavel-stamp.guilty { color: #d24a33; }
+.gavel-stamp.innocent { color: #5c9166; }
+
+.gavel-scene.stamped .gavel-stamp {
+  transform: scale(1) rotate(-7deg);
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gavel-stamp { transition: none; transform: rotate(-7deg); }
+}
+
+.gavel-box h2 {
+  font-family: 'Aref Ruqaa', serif;
+  font-size: clamp(21px, 4vw, 31px);
+  line-height: 1.75;
+  color: #fdf6e8;
+  margin: 0 0 10px;
+  text-shadow: 0 2px 20px rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  transition: opacity 0.5s var(--ease) 0.3s;
+}
+
+.gavel-who {
+  color: var(--gold-400, #e6c988);
+  font-size: 16px;
+  margin: 0;
+  opacity: 0;
+  transition: opacity 0.5s var(--ease) 0.45s;
+}
+
+.gavel-scene.stamped h2,
+.gavel-scene.stamped .gavel-who { opacity: 1; }

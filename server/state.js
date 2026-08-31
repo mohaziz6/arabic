@@ -156,29 +156,50 @@ export function playCard(s, playerId, cardId) {
 }
 
 /** يسجّل مرافعة مُقيَّمة ويتقدّم للمرحلة التالية. */
-export function submitSpeech(s, playerId, transcript, judgement) {
+/**
+ * يسجّل مرافعة **ويتقدّم فوراً** بلا انتظار القاضي.
+ *
+ * التقييم يجري بعدها في الخلفية أثناء مرافعة الخصم — لو انتظرناه لتجمّدت
+ * اللعبة أربع مرات في كل محاكمة، وهذا وحده يفسد الإيقاع.
+ * يُرجع `index` لتُلحق به النتيجة حين تصل.
+ */
+export function submitSpeech(s, playerId, transcript) {
   if (s.status !== 'trial') return { ok: false, error: 'لا توجد محاكمة جارية', state: s };
   if (currentSpeaker(s)?.id !== playerId) return { ok: false, error: 'ليس دورك', state: s };
 
   const phase = currentPhase(s);
   const imposed = s.trial.imposed;
 
-  s.trial.speeches.push({
+  const index = s.trial.speeches.push({
     role: s.players[playerId].role,
     playerId,
     phase: phase.id,
     transcript,
     cardId: imposed?.cardId ?? null,
     imposedBy: imposed?.by ?? null,
-    judgement,
-  });
+    judgement: null,               // تصل لاحقاً عبر applyJudgement
+  }) - 1;
 
-  // النقاط للمتحدّث: كسر القيد فربح، وعجز عنه فخسر — والرامي يقامر بذلك
-  s.trial.scores[playerId] += judgement.score + (judgement.cardDelta ?? 0);
   s.trial.imposed = null;
   s.trial.phaseIndex += 1;
-  return { ok: true, state: s };
+  return { ok: true, state: s, index };
 }
+
+/** يُلحق حكم القاضي بمرافعة سُجّلت، ويضيف نقاطها. */
+export function applyJudgement(s, index, judgement) {
+  const speech = s.trial?.speeches[index];
+  if (!speech) return { ok: false, error: 'مرافعة غير معروفة', state: s };
+  if (speech.judgement) return { ok: false, error: 'قُيّمت مسبقاً', state: s };
+
+  speech.judgement = judgement;
+  // النقاط للمتحدّث: كسر القيد فربح، وعجز عنه فخسر — والرامي يقامر بذلك
+  s.trial.scores[speech.playerId] += judgement.score + (judgement.cardDelta ?? 0);
+  return { ok: true, state: s, speech };
+}
+
+/** هل بقيت مرافعة تنتظر حكم القاضي؟ الحكم النهائي لا يصدر قبل اكتمالها. */
+export const pendingJudgements = (s) =>
+  (s.trial?.speeches ?? []).filter((sp) => !sp.judgement).length;
 
 /** يفصل في اعتراض معلّق: يمنح أو يخصم، ويستأنف المؤقّت. */
 export function resolveObjection(s, sustained) {

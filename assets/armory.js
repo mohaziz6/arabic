@@ -9,6 +9,17 @@ const $ = (s) => document.querySelector(s);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /** نصوص البطاقات والقيود يولّدها النموذج — لا تُحقن كـ HTML. */
+/**
+ * يُظهر طبقة مع انتقالها. لا نستخدم requestAnimationFrame هنا:
+ * لا يعمل في تبويبٍ خلفي، فتبقى الطبقة شفافة عند من لم تكن نافذته أمامه.
+ * إعادة تدفّق قسرية تكفي لالتقاط المتصفح للحالة الابتدائية.
+ */
+function openLayer(box, cls = 'is-open') {
+  box.hidden = false;
+  void box.offsetWidth;          // إعادة تدفّق قسرية — تعمل في كل الحالات
+  box.classList.add(cls);
+}
+
 const esc = (v) =>
   String(v ?? '').replace(/[&<>"']/g, (ch) =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
@@ -106,9 +117,8 @@ export async function openArmory(hand, { canThrow, reason, onThrow }) {
     )
     .join('');
 
-  box.hidden = false;
   armoryOpen = true;
-  requestAnimationFrame(() => box.classList.add('is-open'));
+  openLayer(box);
   sfx.open();
 
   const cards = [...deck.querySelectorAll('.armory-card')];
@@ -154,8 +164,7 @@ export async function showStrike({ cardId, name, onTarget, content, by, atMe }) 
     : 'أُشهر السلاح — والقاضي يرقب.';
 
   box.classList.toggle('at-me', Boolean(atMe));
-  box.hidden = false;
-  requestAnimationFrame(() => box.classList.add('is-open'));
+  openLayer(box);
   sfx.hit();
 
   await sleep(atMe ? 3000 : 1900);

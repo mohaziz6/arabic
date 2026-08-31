@@ -10,6 +10,18 @@ import { judgeSilhouette } from './judge-art.js';
 
 const $ = (s) => document.querySelector(s);
 
+/**
+ * يُظهر طبقة مع انتقالها. لا نستخدم requestAnimationFrame هنا:
+ * لا يعمل في تبويبٍ خلفي، فتبقى الطبقة شفافة عند من لم تكن نافذته أمامه.
+ * إعادة تدفّق قسرية تكفي لالتقاط المتصفح للحالة الابتدائية.
+ */
+function openLayer(box, cls = 'is-open') {
+  box.hidden = false;
+  void box.offsetWidth;          // إعادة تدفّق قسرية — تعمل في كل الحالات
+  box.classList.add(cls);
+}
+
+
 /* ─────────── الصوت ─────────── */
 
 let audio = null;
@@ -89,8 +101,7 @@ export async function revealJudge(judges, chosen) {
   $('#judge-draw-name').textContent = '';
   $('#judge-draw-brief').textContent = '';
   $('#judge-draw-warn').textContent = '';
-  overlay.hidden = false;
-  overlay.classList.add('is-open');
+  openLayer(overlay);
 
   if (reduced) {                      // بلا دوران لمن يفضّل تقليل الحركة
     winner.classList.add('lit', 'won');
@@ -141,4 +152,39 @@ async function close(overlay) {
   overlay.classList.remove('is-open');
   await sleep(420);
   overlay.hidden = true;
+}
+
+/* ─────────── النطق بالحكم ─────────── */
+
+let verdictToken = 0;
+
+/**
+ * لحظة الحكم: ختم «مُدان» أو «بريء» يهبط بدقّة مطرقة، ثم نصّ النطق.
+ * ذروة المحاكمة — لا تمر في لوحٍ جانبي.
+ */
+export async function announceVerdict({ guilty, spoken, winnerName, iWon }) {
+  const box = $('#gavel-scene');
+  const mine = ++verdictToken;
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  $('#gavel-stamp').textContent = guilty ? 'مُدان' : 'بريء';
+  $('#gavel-stamp').className = `gavel-stamp ${guilty ? 'guilty' : 'innocent'}`;
+  $('#gavel-spoken').textContent = spoken;
+  $('#gavel-who').textContent = iWon ? 'كسبتَ القضية' : `كسب القضية: ${winnerName}`;
+
+  openLayer(box);
+
+  if (!reduced) {
+    await sleep(240);
+    box.classList.add('stamped');
+    gavel();
+  } else {
+    box.classList.add('stamped');
+  }
+
+  await sleep(3600);
+  if (mine !== verdictToken) return;
+  box.classList.remove('is-open', 'stamped');
+  await sleep(420);
+  if (mine === verdictToken) box.hidden = true;
 }
