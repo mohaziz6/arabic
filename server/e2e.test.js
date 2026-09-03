@@ -336,3 +336,87 @@ test('الحكم النهائي لا يصدر قبل اكتمال تقييم ك�
     'كل المرافعات مُقيَّمة قبل الحكم');
   a.ws.close(); b.ws.close();
 });
+
+/* ─────────── سَنَد ─────────── */
+
+async function sanadRoom(nameA = 'أ', nameB = 'ب') {
+  const a = client(); await a.open;
+  a.send('create', { game: 'sanad', name: nameA });
+  await until(() => a.state?.code);
+  const b = client(); await b.open;
+  b.send('join', { game: 'sanad', code: a.state.code, name: nameB });
+  await until(() => b.state?.me);
+  return { a, b };
+}
+
+test('سَنَد: جولة كاملة — الخيارات للراوي، والحكم للخصم', async () => {
+  const { a, b } = await sanadRoom('محمد', 'خالد');
+  a.send('sanad-start');
+  assert.ok(await until(() => a.state?.phase === 'pick'), 'بدأت الجلسة');
+
+  const nar = a.state.me.isNarrator ? a : b;
+  const lis = nar === a ? b : a;
+
+  assert.equal(nar.state.options?.length, 3, 'الراوي يرى ثلاث روايات');
+  assert.deepEqual(nar.state.options.map((o) => o.points).sort((x, y) => x - y), [1, 3, 5]);
+  assert.equal(lis.state.options, null, 'الخصم لا يراها');
+
+  nar.send('sanad-choose', { kind: 'absurd' });
+  assert.ok(await until(() => lis.state?.phase === 'talk'), 'انتقلنا للنقاش');
+  assert.ok(lis.state.told.text.length > 20, 'الخصم يرى النصّ');
+  assert.equal(lis.state.told.kind, null, 'بلا وسمها');
+  assert.equal(lis.state.truth, null, 'ولا الحقيقة');
+
+  lis.send('sanad-rule', { ruling: 'liar' });
+  assert.ok(await until(() => lis.state?.phase === 'reveal'), 'صدر الحكم');
+  assert.equal(lis.state.told.kind, 'absurd', 'كُشف النوع');
+  assert.equal(lis.state.scores[lis.id], 5, 'الكاشف أخذ الخمس');
+  assert.ok(lis.state.truth.length > 20, 'ظهرت الحقيقة');
+
+  a.ws.close(); b.ws.close();
+});
+
+test('رسالة من المحاكمة لا تُدمّر غرفة سَنَد', async () => {
+  const { a, b } = await sanadRoom();
+  a.send('sanad-start');
+  await until(() => a.state?.phase === 'pick');
+  const figureBefore = a.state.figure.id;
+
+  // رسائل المحاكمة كلها — يجب أن تُهمل بلا أثر
+  for (const t of ['start-trial', 'advance', 'next-trial', 'retry-verdict']) a.send(t);
+  a.send('play-card', { cardId: 'bayt' });
+  a.send('speech', { transcript: 'مرافعة في لعبة لا مرافعة فيها' });
+  await settle(700);
+
+  assert.equal(a.state.game, 'sanad', 'ما زالت سَنَد');
+  assert.equal(a.state.phase, 'pick', 'المرحلة سليمة');
+  assert.equal(a.state.figure.id, figureBefore, 'الشخصية لم تتبدّل');
+  a.ws.close(); b.ws.close();
+});
+
+test('رسالة من سَنَد لا تمسّ غرفة المحاكمة', async () => {
+  const a = client(); await a.open;
+  a.send('create', { name: 'أ' });
+  await until(() => a.state?.code);
+  const b = client(); await b.open;
+  b.send('join', { code: a.state.code, name: 'ب' });
+  await until(() => b.state?.me);
+
+  for (const t of ['sanad-start', 'sanad-next']) a.send(t);
+  a.send('sanad-choose', { kind: 'absurd' });
+  a.send('sanad-rule', { ruling: 'liar' });
+  await settle(600);
+
+  assert.equal(a.state.trial, null, 'لا محاكمة بدأت');
+  assert.equal(a.state.status, 'lobby');
+  a.ws.close(); b.ws.close();
+});
+
+test('الانضمام بلعبة مخالفة يُرفض', async () => {
+  const { a } = await sanadRoom();
+  const c = client(); await c.open;
+  c.send('join', { game: 'muhakama', code: a.state.code, name: 'ج' });
+  assert.ok(await until(() => c.errors.length > 0), 'رُفض');
+  assert.ok(c.errors[0].includes('سَنَد'), `يذكر اللعبة: ${c.errors[0]}`);
+  a.ws.close(); c.ws.close();
+});

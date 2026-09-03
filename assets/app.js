@@ -6,9 +6,11 @@
  */
 
 import { connect, bindTrialUI, startTrial } from './trial.js';
+import { connect as connectSanad, bindSanadUI } from './sanad.js';
 
-/** معرّف لعبة المحاكمة في كتالوج GAMES. */
+/** الألعاب المبنيّة فعلاً في كتالوج GAMES. */
 const TRIAL_ID = 'muhakama';
+const SANAD_ID = 'sanad';
 
 const state = {
   mode: 'create',   // 'create' | 'join'
@@ -154,6 +156,29 @@ function enterTrial() {
   });
 }
 
+let sanadConnected = false;
+
+/** يفتح شاشة سَنَد ويصل بالخادم. لا مايكروفون — النقاش بمكالمة بينهما. */
+function enterSanad() {
+  if (sanadConnected) { show('screen-sanad'); return; }
+  sanadConnected = true;
+  bindSanadUI();
+  connectSanad({
+    mode: state.mode,
+    name: state.name,
+    code: state.code,
+    onJoined: ({ code }) => {
+      state.code = code;
+      $('#sanad-code').textContent = code;
+      show('screen-sanad');
+    },
+    onError: (err) => {
+      if (!$('#screen-sanad').classList.contains('is-active')) sanadConnected = false;
+      window.alert(err);
+    },
+  });
+}
+
 /* ---------- الربط ---------- */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -178,12 +203,17 @@ document.addEventListener('DOMContentLoaded', () => {
     $('#chip-code').textContent = state.code || '—';
     $('#p1-name').textContent = state.name;
     $('#p1-avatar').textContent = state.name[0] || '؟';
+
+    // دعوةٌ تحمل لعبتها: ندخلها مباشرة، فاختيار غيرها يدخله بواجهة لا تخصّه
+    if (state.invitedGame === SANAD_ID) { state.gameId = SANAD_ID; enterSanad(); return; }
+    if (state.invitedGame === TRIAL_ID) { state.gameId = TRIAL_ID; enterTrial(); return; }
     show('screen-games');
   });
 
   $('#btn-confirm').addEventListener('click', (e) => {
     burstFrom(e.currentTarget, 16);
     if (state.gameId === TRIAL_ID) enterTrial();
+    else if (state.gameId === SANAD_ID) enterSanad();
     else openLobby();
   });
   $('#btn-back').addEventListener('click', () => show('screen-start'));
@@ -200,9 +230,12 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // رابط دعوة ?code=ABCD — الخصم يفتحه فيجد الرمز مملوءاً
-  const invited = new URLSearchParams(location.search).get('code');
+  const params = new URLSearchParams(location.search);
+  const invited = params.get('code');
+  const invitedGame = params.get('game');
   if (invited) {
     setMode('join');
+    state.invitedGame = invitedGame;
     $('#room-code').value = invited.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4);
     $('#start-hint').textContent = 'دُعيتَ إلى ديوان — اكتب اسمك وادخل.';
   } else {

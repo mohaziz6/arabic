@@ -223,6 +223,94 @@
       </div>
     </section>
 
+
+    <!-- ═══ الشاشة الخامسة: سَنَد ═══ -->
+    <section id="screen-sanad" class="screen">
+      <div class="wrap">
+        <header class="topbar">
+          <div class="brand"><span class="mini-seal">س</span> سَنَد</div>
+          <div class="room-chip">رمز الديوان <b id="sanad-code">—</b></div>
+        </header>
+
+        <div class="sanad-bar">
+          <div class="sanad-side">
+            <strong id="sn-me">—</strong>
+            <span class="sanad-score" id="sn-me-score">0</span>
+            <small class="sanad-role" id="sn-me-role"></small>
+          </div>
+          <div class="sanad-mid">
+            <div class="sanad-step" id="sn-step">—</div>
+            <div class="timer-ring" id="sn-timer-ring" hidden><span id="sn-timer">—</span></div>
+          </div>
+          <div class="sanad-side end">
+            <strong id="sn-opp">بانتظار الخصم…</strong>
+            <span class="sanad-score" id="sn-opp-score">0</span>
+            <small class="sanad-role" id="sn-opp-role"></small>
+          </div>
+        </div>
+
+        <div class="panel invite" id="sn-invite" hidden>
+          <span class="case-tag">الدعوة</span>
+          <p class="invite-line">شارك هذا الرابط مع خصمك — وتكلّموا بمكالمة بينكم</p>
+          <div class="invite-row">
+            <input type="text" id="sn-invite-link" readonly />
+            <button class="btn btn-ghost btn-sm" id="sn-copy-link">انسخ الرابط</button>
+          </div>
+        </div>
+
+        <button class="btn btn-primary" id="sn-start" hidden>ابدأ الجلسة</button>
+
+        <div class="sanad-stage" id="sn-stage" hidden>
+          <div class="figure-card">
+            <span class="figure-tag">الشخصية</span>
+            <h2 class="rayed" id="sn-figure-name">—</h2>
+            <p class="figure-era" id="sn-figure-era">—</p>
+          </div>
+
+          <div class="question-card">
+            <span class="q-num" id="sn-q-num">١</span>
+            <h3 id="sn-question">—</h3>
+            <p id="sn-question-brief">—</p>
+          </div>
+        </div>
+
+        <div class="sanad-options" id="sn-options" hidden></div>
+
+        <div class="panel sanad-wait" id="sn-waiting" hidden>
+          <div class="waiting"><i></i><i></i><i></i> <span id="sn-wait-text">الراوي يختار روايته…</span></div>
+        </div>
+
+        <div class="told-card" id="sn-told" hidden>
+          <span class="told-tag" id="sn-told-tag">الرواية</span>
+          <p class="told-text" id="sn-told-text">—</p>
+        </div>
+
+        <div class="ruling" id="sn-ruling" hidden>
+          <button class="rule-btn trust" type="button" id="sn-trust">
+            <span class="rule-glyph">✓</span><strong>ثقة</strong><small>صدقَ فيما روى</small>
+          </button>
+          <button class="rule-btn liar" type="button" id="sn-liar">
+            <span class="rule-glyph">✕</span><strong>كذّاب</strong><small>اختلقها اختلاقاً</small>
+          </button>
+        </div>
+
+        <div class="reveal-card" id="sn-reveal" hidden>
+          <div class="reveal-head">
+            <span class="reveal-kind" id="sn-kind">—</span>
+            <span class="reveal-gain" id="sn-gain">—</span>
+          </div>
+          <p class="truth-label">والصحيحُ أنّ…</p>
+          <p class="truth-text rayed soft" id="sn-truth">—</p>
+          <button class="btn btn-primary btn-sm" id="sn-next">التالي</button>
+        </div>
+
+        <div class="panel sanad-over" id="sn-over" hidden>
+          <h2 class="rayed" id="sn-over-title">—</h2>
+          <p id="sn-over-score">—</p>
+        </div>
+      </div>
+    </section>
+
   </div>
 
 

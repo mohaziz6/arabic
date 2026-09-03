@@ -14,6 +14,7 @@ import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 
 import * as S from './state.js';
+import * as SN from './sanad.js';
 import * as judge from './judge.js';
 import { CARD_BY_ID, PHASE_LABELS } from './rules.js';
 import { loadEnv, lanAddress, ensureCert } from './setup.js';
@@ -89,10 +90,14 @@ const send = (ws, type, payload) => {
   if (ws?.readyState === 1) ws.send(JSON.stringify({ type, ...payload }));
 };
 
-/** يبثّ لكل لاعب لقطته هو — لا لقطة مشتركة، وإلا تسرّبت بطاقات الخصم. */
+/** آلة حالات اللعبة التي تُلعب في هذه الغرفة. */
+const engineOf = (room) => (room.game === 'sanad' ? SN : S);
+
+/** يبثّ لكل لاعب لقطته هو — لا لقطة مشتركة، وإلا تسرّبت أسرار الخصم. */
 function broadcast(room) {
+  const engine = engineOf(room);
   for (const [playerId, ws] of room.sockets) {
-    send(ws, 'state', { state: S.viewFor(room.state, playerId) });
+    send(ws, 'state', { state: engine.viewFor(room.state, playerId) });
   }
 }
 
@@ -313,16 +318,26 @@ wss.on('connection', (ws) => {
       return;
     }
 
+    // كل رسالة تخصّ لعبتها. بلا هذا الحارس تُدمّر رسالةُ محاكمةٍ غرفةَ سَنَد،
+    // وتصرف نداءً مدفوعاً للقاضي في لعبة لا قاضي فيها.
+    const TRIAL_ONLY = ['start-trial', 'advance', 'play-card', 'live', 'speech',
+                        'retry-verdict', 'next-trial'];
+    const SANAD_ONLY = ['sanad-start', 'sanad-choose', 'sanad-rule', 'sanad-next'];
+    if (room && TRIAL_ONLY.includes(msg.type) && room.game === 'sanad') return;
+    if (room && SANAD_ONLY.includes(msg.type) && room.game !== 'sanad') return;
+
     try {
       switch (msg.type) {
         case 'create': {
           const code = freshCode();
           playerId = randomUUID();
-          const state = S.createSession(code, playerId, (msg.name || 'لاعب').slice(0, 20));
-          room = { state, sockets: new Map(), pastCharges: [] };
+          const game = msg.game === 'sanad' ? 'sanad' : 'muhakama';
+          const engine = game === 'sanad' ? SN : S;
+          const state = engine.createSession(code, playerId, (msg.name || 'لاعب').slice(0, 20));
+          room = { state, game, sockets: new Map(), pastCharges: [] };
           room.sockets.set(playerId, ws);
           rooms.set(code, room);
-          send(ws, 'joined', { playerId, code, judges: publicJudges() });
+          send(ws, 'joined', { playerId, code, game, judges: publicJudges() });
           broadcast(room);
           break;
         }
@@ -331,6 +346,12 @@ wss.on('connection', (ws) => {
           const code = String(msg.code || '').toUpperCase();
           room = rooms.get(code);
           if (!room) { send(ws, 'error', { error: 'لا يوجد ديوان بهذا الرمز' }); room = null; break; }
+          if (msg.game && msg.game !== room.game) {
+            const label = room.game === 'sanad' ? 'سَنَد' : 'المحاكمة';
+            send(ws, 'error', { error: `هذا الديوان يلعب «${label}» — اختر اللعبة نفسها` });
+            room = null;
+            break;
+          }
           const name = (msg.name || 'لاعب').slice(0, 20);
 
           // مقعد لاعبٍ انقطع يُستعاد بنفس الاسم بدل أن يُقال "الديوان ممتلئ"
@@ -342,13 +363,13 @@ wss.on('connection', (ws) => {
             vacant.name = name;
           } else {
             playerId = randomUUID();
-            const added = S.addPlayer(room.state, playerId, name);
+            const added = engineOf(room).addPlayer(room.state, playerId, name);
             if (!added.ok) { send(ws, 'error', { error: added.error }); room = null; break; }
           }
           room.sockets.set(playerId, ws);
-          send(ws, 'joined', { playerId, code, judges: publicJudges() });
+          send(ws, 'joined', { playerId, code, game: room.game, judges: publicJudges() });
           broadcast(room);
-          announce(room, 'اكتمل الخصمان. ارفعوا الجلسة متى شئتم.');
+          if (room.game !== 'sanad') announce(room, 'اكتمل الخصمان. ارفعوا الجلسة متى شئتم.');
           break;
         }
 
@@ -399,6 +420,44 @@ wss.on('connection', (ws) => {
         case 'retry-verdict':
           if (room && room.state.trial && !room.state.trial.verdict) await concludeTrial(room);
           break;
+
+        /* ─── سَنَد ─── */
+
+        case 'sanad-start': {
+          if (room?.game !== 'sanad') break;
+          const r = SN.startSession(room.state);
+          if (!r.ok) { send(ws, 'error', { error: r.error }); break; }
+          broadcast(room);
+          break;
+        }
+
+        case 'sanad-choose': {
+          if (room?.game !== 'sanad') break;
+          const r = SN.choose(room.state, playerId, msg.kind);
+          if (!r.ok) { send(ws, 'error', { error: r.error }); break; }
+          broadcast(room);
+          for (const sock of room.sockets.values()) send(sock, 'sanad-told', {});
+          break;
+        }
+
+        case 'sanad-rule': {
+          if (room?.game !== 'sanad') break;
+          const r = SN.rule(room.state, playerId, msg.ruling);
+          if (!r.ok) { send(ws, 'error', { error: r.error }); break; }
+          broadcast(room);
+          for (const [pid, sock] of room.sockets) {
+            send(sock, 'sanad-verdict', { iWon: pid === r.winnerId, listenerRight: r.listenerRight });
+          }
+          break;
+        }
+
+        case 'sanad-next': {
+          if (room?.game !== 'sanad') break;
+          const r = SN.next(room.state);
+          if (!r.ok) { send(ws, 'error', { error: r.error }); break; }
+          broadcast(room);
+          break;
+        }
 
         case 'next-trial':
           if (room && room.state.status === 'trial' && S.isTrialOver(room.state)) await beginTrial(room);

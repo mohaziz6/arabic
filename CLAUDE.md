@@ -36,7 +36,10 @@ assets/judge-art.js   ظلال القضاة (SVG بلا ملامح وجه)
 assets/card-art.js    رسوم الأسلحة: قلم ودواة، نخلة، عود، مطرقة
 assets/armory.js      خزانة الأسلحة وإعلان الرمية وأصواتهما
 assets/judge-reveal.js انميشن القرعة وصوتها المولّد بـ Web Audio
-server/index.js       HTTP + WebSocket، الغرف، تدفّق المحاكمة
+server/sanad.js       سَنَد: آلة حالات خالصة بلا وكيل
+assets/sanad.js       شاشة سَنَد — عرض وإدخال فقط
+assets/card-art.js    رسوم الأسلحة: قلم ودواة، نخلة، عود، مطرقة
+server/index.js       HTTP + WebSocket، الغرف، تدفّق اللعبتين
 assets/trial.js       شاشة المحاكمة — عرض وإدخال فقط
 assets/speech.js      transcribe() خلفها Web Speech API
 index.html            الشاشات: screen-start → screen-games → screen-lobby/screen-trial
@@ -146,5 +149,8 @@ assets/fonts/         ملفات woff2 (عربي + لاتيني فقط)
 
 الروايات الموسومة `true` تُراجع صحّتها قبل الإضافة — رواية خاطئة موسومة بالصحة
 تعلّم خطأً ويبقى.
+
+**الغرفة تحمل لعبتها**، وكل رسالة تُرفض إن جاءت لغير لعبتها (`TRIAL_ONLY`/`SANAD_ONLY`
+في `server/index.js`). بلا هذا الحارس تُدمّر رسالةُ محاكمةٍ غرفةَ سَنَد.
 
 الثالثة تُبنى بنسخ نمط `rules/state`، ومنها يُستخرج المشترك.
