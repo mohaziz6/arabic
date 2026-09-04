@@ -1796,3 +1796,79 @@ input.code {
   .sanad-score { font-size: 24px; }
   .rayed::before { width: 320px; height: 320px; margin: -160px 0 0 -160px; }
 }
+
+/* الرواية المحجوبة عند الخصم — مطلعٌ ثم حجب للشكل */
+
+.told-text.masked {
+  font-family: 'IBM Plex Sans Arabic', sans-serif;
+  font-size: 17px;
+  line-height: 2.1;
+}
+
+.told-opening {
+  font-family: 'Aref Ruqaa', serif;
+  font-size: clamp(19px, 2.9vw, 26px);
+  line-height: 1.9;
+  color: var(--ink);
+}
+
+.ink-bars {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 11px;
+  margin: 16px auto 6px;
+  width: min(560px, 100%);
+}
+
+.ink-bar {
+  display: block;
+  width: calc(var(--w) * 100%);
+  height: 13px;
+  border-radius: 7px;
+  background: linear-gradient(90deg, var(--line), var(--line-strong), var(--line));
+  background-size: 220% 100%;
+  animation: ink-drift 4.5s ease-in-out infinite;
+  opacity: 0.75;
+}
+
+.ink-bar:nth-child(2) { animation-delay: 0.5s; }
+.ink-bar:nth-child(3) { animation-delay: 1s; }
+.ink-bar:nth-child(4) { animation-delay: 1.5s; }
+
+@keyframes ink-drift {
+  50% { background-position: 100% 0; opacity: 0.5; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ink-bar { animation: none; }
+}
+
+.listen-note {
+  display: block;
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-family: 'IBM Plex Sans Arabic', sans-serif;
+}
+
+/* النقاط تطير من بطاقة الكشف إلى لوح الفائز */
+
+.point-token {
+  position: fixed;
+  z-index: 95;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  padding: 7px 18px;
+  border-radius: 999px;
+  font-family: 'Aref Ruqaa', serif;
+  font-size: 26px;
+  line-height: 1.35;
+  color: #fff;
+  background: var(--palm);
+  box-shadow: 0 10px 26px -8px rgba(0, 0, 0, 0.45);
+  direction: ltr;
+  transition: transform 0.6s cubic-bezier(0.4, 0, 0.25, 1), opacity 0.6s ease-in;
+}
+
+/* الرمز لا يُنشأ أصلاً في وضع تقليل الحركة — الرصيد يُرسم فوراً */

@@ -97,13 +97,14 @@ function render(s) {
 
   $('#sanad-code').textContent = s.code;
   $('#sn-me').textContent = s.me?.name ?? '—';
-  $('#sn-me-score').textContent = String(s.scores?.[s.me?.id] ?? 0);
+
   $('#sn-opp').textContent = s.opponent?.name ?? 'بانتظار الخصم…';
-  $('#sn-opp-score').textContent = s.opponent ? String(s.scores[s.opponent.id] ?? 0) : '0';
+
   $('#sn-me-role').textContent = s.me?.isNarrator ? 'الراوي' : (s.opponent ? 'الحاكم' : '');
   $('#sn-opp-role').textContent = s.opponent ? (s.opponent.isNarrator ? 'الراوي' : 'الحاكم') : '';
 
-  bumpScores(prev, s);
+  // الطيران يجري في renderReveal بعد ظهور البطاقة — من هنا رسمٌ فوري فقط
+  if (!(s.phase === 'reveal' && prev?.phase !== 'reveal')) paintScores(s);
 
   const inviteBox = $('#sn-invite');
   inviteBox.hidden = Boolean(s.opponent);
@@ -127,17 +128,86 @@ function render(s) {
   renderPhase(s, prev);
 }
 
-/** النقاط تقفز حين تزيد — الربح يجب أن يُرى. */
-function bumpScores(prev, s) {
-  if (!prev?.scores) return;
-  for (const [el, id] of [['#sn-me-score', s.me?.id], ['#sn-opp-score', s.opponent?.id]]) {
-    if (id && s.scores[id] > (prev.scores[id] ?? 0)) {
-      const node = $(el);
-      node.classList.remove('bump');
-      void node.offsetWidth;
-      node.classList.add('bump');
+/** ما هو معروض الآن على لوح النقاط — يتخلّف عن الحالة أثناء الانميشن. */
+const shownScores = {};
+
+/** مؤقّتات الطيران والعدّ، تُلغى إن جاء بثٌّ جديد وسط المشهد. */
+let scoreTimers = [];
+const laterCancellable = (fn, ms) => { scoreTimers.push(setTimeout(fn, ms)); };
+
+function cancelScoreAnim() {
+  scoreTimers.forEach(clearTimeout);
+  scoreTimers = [];
+  document.querySelectorAll('.point-token').forEach((t) => t.remove());
+}
+
+const reducedMotion = () =>
+  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/**
+ * الرصيد لا يقفز فجأة: النقاط تطير من بطاقة الكشف إلى لوح الفائز،
+ * ثم يعدّ الرقم تصاعدياً. فترى من أين جاءت وإلى أين ذهبت.
+ */
+function paintScores(s, { animate = false } = {}) {
+  cancelScoreAnim();                       // بثٌّ جديد يُلغي مشهداً جارياً
+  for (const [sel, id] of [['#sn-me-score', s.me?.id], ['#sn-opp-score', s.opponent?.id]]) {
+    if (!id) continue;
+    const target = s.scores[id] ?? 0;
+    const known = Object.prototype.hasOwnProperty.call(shownScores, id);
+    const from = known ? shownScores[id] : target;   // أول رسم لا يُحرَّك من صفر
+    const node = $(sel);
+
+    if (!animate || !known || target === from || reducedMotion()) {
+      shownScores[id] = target;
+      node.textContent = String(target);
+      continue;
     }
+    flyThenCount(node, from, target, id);
   }
+}
+
+function flyThenCount(node, from, to, id) {
+  const source = $('#sn-gain');
+  const a = source.getBoundingClientRect();
+  const b = node.getBoundingClientRect();
+
+  const token = document.createElement('div');
+  token.className = 'point-token';
+  token.textContent = `+${to - from}`;
+  token.style.left = `${a.left + a.width / 2}px`;
+  token.style.top = `${a.top + a.height / 2}px`;
+  document.body.append(token);
+
+  void token.offsetWidth;
+  // -50% تبقى في المعادلة: بدونها يقفز الرمز بنصف حجمه ويحطّ بزاويته لا بمركزه
+  token.style.transform =
+    `translate(calc(-50% + ${b.left + b.width / 2 - (a.left + a.width / 2)}px), ` +
+    `calc(-50% + ${b.top + b.height / 2 - (a.top + a.height / 2)}px)) scale(0.55)`;
+  token.style.opacity = '0.15';
+
+  laterCancellable(() => {
+    token.remove();
+    node.classList.remove('bump');
+    void node.offsetWidth;
+    node.classList.add('bump');
+    countUp(node, from, to, id);
+  }, 620);
+}
+
+/** يعدّ الرقم تصاعدياً بلا مؤقّتات: rAF لا يعمل في تبويب خلفي فنستعمل الوقت. */
+function countUp(node, from, to, id) {
+  const started = Date.now();
+  const dur = 520;
+  const step = () => {
+    const t = Math.min(1, (Date.now() - started) / dur);
+    const eased = 1 - Math.pow(1 - t, 3);
+    const value = Math.round(from + (to - from) * eased);
+    node.textContent = String(value);
+    shownScores[id] = value;
+    if (t < 1) laterCancellable(step, 40);
+    else { shownScores[id] = to; node.textContent = String(to); }
+  };
+  step();
 }
 
 function renderStage(s, prev) {
@@ -183,7 +253,7 @@ function renderPhase(s, prev) {
   if (s.phase === 'talk') {
     hide($('#sn-options')); hide($('#sn-waiting')); hide($('#sn-reveal'));
     $('#sn-told-tag').textContent = isNarrator ? 'روايتك — أقنعه بها' : 'ما رواه خصمك';
-    $('#sn-told-text').textContent = s.told?.text ?? '';
+    renderTold(s, isNarrator);
     reveal($('#sn-told'));
 
     if (isNarrator) hide($('#sn-ruling'));
@@ -198,15 +268,36 @@ function renderPhase(s, prev) {
     stopTimer();
     hide($('#sn-options')); hide($('#sn-waiting')); hide($('#sn-ruling'));
     $('#sn-told-tag').textContent = 'ما رُوي';
-    $('#sn-told-text').textContent = s.told?.text ?? '';
+    renderTold(s, true);          // بعد الحكم يراها الطرفان كاملة
     reveal($('#sn-told'));
-    renderReveal(s);
+    renderReveal(s, phaseChanged);
   }
+}
+
+/**
+ * الراوي يقرأ روايته كاملة، والخصم لا يرى إلا مطلعها ثم حجباً للشكل —
+ * والبقية لم تصل المتصفح أصلاً، فلا تُقرأ من أدوات المطور.
+ */
+function renderTold(s, full) {
+  const box = $('#sn-told-text');
+  box.classList.toggle('masked', !full);
+
+  if (full && s.told?.text) {
+    box.textContent = s.told.text;
+    return;
+  }
+
+  // أسطر زخرفية ثابتة الطول: لا تفضح حتى طول الرواية
+  const bars = [0.92, 1, 0.86, 0.44]
+    .map((w) => `<span class="ink-bar" style="--w:${w}"></span>`).join('');
+  box.innerHTML = `<span class="told-opening">${esc(s.told?.opening ?? '')}</span>
+    <span class="ink-bars">${bars}</span>
+    <span class="listen-note">أنصِت إليه — الحكاية عنده لا عندك</span>`;
 }
 
 const KIND_LABEL = { true: 'كانت صحيحة', crafted: 'كذبة محكمة', absurd: 'كذبة فاضحة' };
 
-function renderReveal(s) {
+function renderReveal(s, justRevealed) {
   const box = $('#sn-reveal');
   const r = s.lastRound;
   const iWon = r?.winnerId === s.me?.id;
@@ -217,6 +308,13 @@ function renderReveal(s) {
   $('#sn-gain').classList.toggle('mine', iWon);
   $('#sn-truth').textContent = s.truth ?? '';
   reveal(box);   // زر التالي مفتوح للطرفين
+
+  // بعد ظهور البطاقة: النقاط تطير منها إلى لوح الفائز ثم يعدّ الرقم.
+  // لو طارت قبل ظهورها لانطلقت من موضعٍ معدوم.
+  if (justRevealed) {
+    if (reducedMotion()) paintScores(s);            // بلا حركة: الرصيد فوراً
+    else laterCancellable(() => paintScores(s, { animate: true }), 380);
+  }
 }
 
 function renderOver(s) {

@@ -363,7 +363,8 @@ test('سَنَد: جولة كاملة — الخيارات للراوي، وال
 
   nar.send('sanad-choose', { kind: 'absurd' });
   assert.ok(await until(() => lis.state?.phase === 'talk'), 'انتقلنا للنقاش');
-  assert.ok(lis.state.told.text.length > 20, 'الخصم يرى النصّ');
+  assert.ok(lis.state.told.opening.length > 3, 'الخصم يرى المطلع');
+  assert.equal(lis.state.told.text, null, 'وبقيتها لا تغادر الخادم');
   assert.equal(lis.state.told.kind, null, 'بلا وسمها');
   assert.equal(lis.state.truth, null, 'ولا الحقيقة');
 

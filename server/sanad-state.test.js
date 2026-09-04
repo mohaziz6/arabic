@@ -33,7 +33,8 @@ test('الخصم لا يرى نوع الرواية ولا نقاطها قبل ا
   const s = started();
   G.choose(s, G.narratorId(s), 'absurd');
   const v = G.viewFor(s, G.listenerId(s));
-  assert.ok(v.told.text.length > 10, 'يرى النصّ');
+  assert.ok(v.told.opening.length > 3, 'يرى المطلع');
+  assert.equal(v.told.text, null, 'لا يرى بقيتها');
   assert.equal(v.told.kind, null, 'لا يرى نوعها');
   assert.equal(v.told.points, null, 'ولا نقاطها');
   assert.equal(v.truth, null, 'ولا الحقيقة');
@@ -137,4 +138,34 @@ test('لا جلسة بلاعب واحد، ولا تُبدأ مرتين', () => {
   assert.equal(G.startSession(s, fixedDeck).ok, true);
   assert.equal(G.startSession(s, fixedDeck).ok, false, 'لا تُبدأ مرتين');
   assert.equal(G.addPlayer(s, 'p3', 'ث').ok, false, 'ولا ثالث');
+});
+
+test('الخصم لا يرى إلا مطلع الرواية — والنصّ كله لا يغادر الخادم', () => {
+  const s = started();
+  const nar = G.narratorId(s);
+  const lis = G.listenerId(s);
+  G.choose(s, nar, 'crafted');
+
+  const full = G.viewFor(s, nar).told.text;
+  assert.ok(full.length > 60, 'الراوي يرى روايته كاملة');
+
+  const seen = G.viewFor(s, lis).told;
+  assert.equal(seen.text, null, 'النصّ الكامل لا يصل الخصم أصلاً');
+  assert.ok(seen.opening.length > 3, 'يصله المطلع');
+  assert.equal(seen.opening.split(/\s+/).length, 3, 'ثلاث كلمات لا أكثر');
+  assert.ok(full.startsWith(seen.opening), 'المطلع من أول الرواية');
+
+  // ولا يتسرّب شيء في اللقطة كاملة
+  const dump = JSON.stringify(G.viewFor(s, lis));
+  const tail = full.slice(seen.opening.length + 1, seen.opening.length + 40);
+  assert.ok(!dump.includes(tail), 'بقية الرواية غير موجودة في اللقطة');
+});
+
+test('بعد الحكم يرى الطرفان الرواية كاملة', () => {
+  const s = started();
+  G.choose(s, G.narratorId(s), 'absurd');
+  G.rule(s, G.listenerId(s), 'liar');
+  const v = G.viewFor(s, G.listenerId(s));
+  assert.ok(v.told.text.length > 60, 'كُشفت كاملة');
+  assert.equal(v.told.kind, 'absurd');
 });

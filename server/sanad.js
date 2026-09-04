@@ -85,6 +85,16 @@ function shuffledDeck(n) {
   return pool.slice(0, n).map((f) => f.id);
 }
 
+/**
+ * مطلع الرواية الذي يراه الخصم — ثلاث كلمات ثم حجب.
+ * الحجب يجري **هنا في الخادم**: لو أُرسل النصّ كاملاً وأُخفي بالـ CSS
+ * لقُرئ من أدوات المطور في ثانية، فانكشفت اللعبة.
+ */
+const OPENING_WORDS = 3;
+
+const openingOf = (text) =>
+  String(text ?? '').trim().split(/\s+/).slice(0, OPENING_WORDS).join(' ');
+
 export const currentFigure = (s) =>
   s.status === 'round' ? FIGURE_BY_ID[s.deck[s.figureIndex]] ?? null : null;
 
@@ -203,9 +213,18 @@ export function viewFor(s, viewerId) {
       ? figure[q.id].map((o) => ({ kind: o.kind, points: POINTS[o.kind], text: o.text }))
       : null,
 
-    // نصّ الرواية المختارة يصل الطرفين بلا وسمها
-    told: s.pick ? { text: s.pick.text, kind: revealed ? s.pick.kind : null,
-                     points: revealed ? s.pick.points : null } : null,
+    /*
+     * الراوي يرى روايته كاملة ليقرأ منها. والخصم لا يرى إلا مطلعها
+     * حتى الكشف — يُنصت إليه لا يقرأ عنه.
+     */
+    told: s.pick
+      ? {
+          text: (amNarrator || revealed) ? s.pick.text : null,
+          opening: openingOf(s.pick.text),
+          kind: revealed ? s.pick.kind : null,
+          points: revealed ? s.pick.points : null,
+        }
+      : null,
 
     ruling: s.ruling,
     // الحقيقة تُكشف بعد الحكم لا قبله
