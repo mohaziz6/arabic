@@ -421,3 +421,111 @@ test('الانضمام بلعبة مخالفة يُرفض', async () => {
   assert.ok(c.errors[0].includes('سَنَد'), `يذكر اللعبة: ${c.errors[0]}`);
   a.ws.close(); c.ws.close();
 });
+
+/* ─────────── مَعاني ─────────── */
+
+async function maaniRoom(nameA = 'أ', nameB = 'ب') {
+  const a = client(); await a.open;
+  a.send('create', { game: 'maani', name: nameA });
+  await until(() => a.state?.code);
+  const b = client(); await b.open;
+  b.send('join', { game: 'maani', code: a.state.code, name: nameB });
+  await until(() => b.state?.me);
+  return { a, b };
+}
+
+test('مَعاني: سباقٌ كامل — الأسرع يكسب، والجواب محجوب حتى الكشف', async () => {
+  const { a, b } = await maaniRoom('محمد', 'خالد');
+  a.send('maani-start');
+  assert.ok(await until(() => a.state?.phase === 'ask'), 'بدأ السباق');
+
+  assert.equal(a.state.progress.questions, 12, 'اثنا عشر سؤالاً');
+  assert.equal(a.state.level.id, 'pair', 'يبدأ بالمقابلة');
+  assert.deepEqual(a.state.question, b.state.question, 'السؤال نفسه للخصمين');
+  assert.equal(a.state.solution, null, 'الجواب لا يغادر الخادم قبل الكشف');
+  assert.equal(JSON.stringify(a.state).includes('"why"'), false, 'ولا تعليله');
+
+  // لكلٍّ إجابةٌ واحدة، والجواب غير معروف للعميل عمداً — فيجيب كلٌّ بغير ما أجاب
+  a.send('maani-answer', { choice: 'synonym' });
+  await settle(180);
+  if (a.state.phase === 'ask') b.send('maani-answer', { choice: 'antonym' });
+  assert.ok(await until(() => a.state?.phase === 'reveal'), 'أُغلق السؤال بعد إجابتهما');
+
+  await settle(150);
+  assert.ok(a.state.solution.answer, 'كُشف الجواب');
+  assert.equal(b.state.solution.answer, a.state.solution.answer, 'ويصل الطرفين');
+  assert.equal(b.state.oppAnswer?.choice != null, true, 'ويُكشف اختيار الخصم');
+
+  const scored = a.state.scores[a.id] + a.state.scores[b.id];
+  assert.ok(scored === 0 || scored === 1, `نقاط المستوى الأول واحدة: ${scored}`);
+
+  b.send('maani-next');
+  assert.ok(await until(() => a.state?.progress.question === 2), 'انتقل الطرفان معاً');
+  a.ws.close(); b.ws.close();
+});
+
+test('مَعاني: من أخطأ خرج وحده، ولا يجيب مرتين', async () => {
+  const { a, b } = await maaniRoom();
+  a.send('maani-start');
+  await until(() => a.state?.phase === 'ask');
+
+  a.send('maani-answer', { choice: 'synonym' });
+  await settle(200);
+
+  if (a.state.phase === 'ask') {                 // أخطأ: يبقى السؤال لخصمه
+    assert.equal(a.state.myAnswer.correct, false);
+    assert.equal(b.state.oppAnswered, true, 'يرى الخصم أن الميدان خلا له');
+    assert.equal(b.state.myAnswer, null, 'وهو لم يُجب بعد');
+
+    const errs = a.errors.length;
+    a.send('maani-answer', { choice: 'antonym' });
+    assert.ok(await until(() => a.errors.length > errs), 'رُفضت إجابته الثانية');
+  } else {
+    assert.equal(a.state.solution.winnerId, a.id, 'أصاب فأخذها');
+  }
+  a.ws.close(); b.ws.close();
+});
+
+test('رسالة من لعبة أخرى لا تمسّ غرفة مَعاني', async () => {
+  const { a, b } = await maaniRoom();
+  a.send('maani-start');
+  await until(() => a.state?.phase === 'ask');
+  const asked = JSON.stringify(a.state.question);
+
+  for (const t of ['start-trial', 'advance', 'next-trial', 'sanad-start', 'sanad-next']) a.send(t);
+  a.send('play-card', { cardId: 'bayt' });
+  a.send('sanad-rule', { ruling: 'liar' });
+  a.send('speech', { transcript: 'مرافعة في لعبة لا قاضي فيها' });
+  await settle(700);
+
+  assert.equal(a.state.game, 'maani', 'ما زالت مَعاني');
+  assert.equal(a.state.phase, 'ask', 'المرحلة سليمة');
+  assert.equal(JSON.stringify(a.state.question), asked, 'السؤال لم يتبدّل');
+  a.ws.close(); b.ws.close();
+});
+
+test('رسالة من مَعاني لا تمسّ غرفة سَنَد', async () => {
+  const { a, b } = await sanadRoom();
+  a.send('sanad-start');
+  await until(() => a.state?.phase === 'pick');
+  const figureBefore = a.state.figure.id;
+
+  a.send('maani-start');
+  a.send('maani-answer', { choice: 'synonym' });
+  a.send('maani-next');
+  await settle(500);
+
+  assert.equal(a.state.game, 'sanad');
+  assert.equal(a.state.phase, 'pick');
+  assert.equal(a.state.figure.id, figureBefore);
+  a.ws.close(); b.ws.close();
+});
+
+test('الانضمام إلى ديوان مَعاني بلعبة أخرى يُرفض', async () => {
+  const { a, b } = await maaniRoom();
+  const c = client(); await c.open;
+  c.send('join', { game: 'sanad', code: a.state.code, name: 'ج' });
+  assert.ok(await until(() => c.errors.length > 0), 'رُفض');
+  assert.ok(c.errors[0].includes('مَعاني'), `يذكر اللعبة: ${c.errors[0]}`);
+  a.ws.close(); b.ws.close(); c.ws.close();
+});

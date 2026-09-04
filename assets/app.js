@@ -7,10 +7,12 @@
 
 import { connect, bindTrialUI, startTrial } from './trial.js';
 import { connect as connectSanad, bindSanadUI } from './sanad.js';
+import { connect as connectMaani, bindMaaniUI } from './maani.js';
 
 /** الألعاب المبنيّة فعلاً في كتالوج GAMES. */
 const TRIAL_ID = 'muhakama';
 const SANAD_ID = 'sanad';
+const MAANI_ID = 'maani';
 
 const state = {
   mode: 'create',   // 'create' | 'join'
@@ -179,6 +181,32 @@ function enterSanad() {
   });
 }
 
+let maaniConnected = false;
+
+/** يفتح شاشة «مَعاني» ويصل بالخادم. سباقٌ بلا مؤقّت ولا مايكروفون. */
+function enterMaani() {
+  if (maaniConnected) { show('screen-maani'); return; }
+  maaniConnected = true;
+  bindMaaniUI();
+  connectMaani({
+    mode: state.mode,
+    name: state.name,
+    code: state.code,
+    onJoined: ({ code }) => {
+      state.code = code;
+      $('#maani-code').textContent = code;
+      show('screen-maani');
+    },
+    onError: (err) => {
+      if (!$('#screen-maani').classList.contains('is-active')) maaniConnected = false;
+      window.alert(err);
+    },
+  });
+}
+
+/** اللعبة المبنيّة → دالّة دخولها. ما ليس فيها يقف عند شاشة الاستعداد. */
+const ENTER = { [TRIAL_ID]: enterTrial, [SANAD_ID]: enterSanad, [MAANI_ID]: enterMaani };
+
 /* ---------- الربط ---------- */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -205,16 +233,15 @@ document.addEventListener('DOMContentLoaded', () => {
     $('#p1-avatar').textContent = state.name[0] || '؟';
 
     // دعوةٌ تحمل لعبتها: ندخلها مباشرة، فاختيار غيرها يدخله بواجهة لا تخصّه
-    if (state.invitedGame === SANAD_ID) { state.gameId = SANAD_ID; enterSanad(); return; }
-    if (state.invitedGame === TRIAL_ID) { state.gameId = TRIAL_ID; enterTrial(); return; }
+    const invited = ENTER[state.invitedGame];
+    if (invited) { state.gameId = state.invitedGame; invited(); return; }
     show('screen-games');
   });
 
   $('#btn-confirm').addEventListener('click', (e) => {
     burstFrom(e.currentTarget, 16);
-    if (state.gameId === TRIAL_ID) enterTrial();
-    else if (state.gameId === SANAD_ID) enterSanad();
-    else openLobby();
+    const enter = ENTER[state.gameId];
+    if (enter) enter(); else openLobby();
   });
   $('#btn-back').addEventListener('click', () => show('screen-start'));
   $('#btn-change-game').addEventListener('click', () => show('screen-games'));

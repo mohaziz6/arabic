@@ -311,6 +311,104 @@
       </div>
     </section>
 
+
+    <!-- ═══ الشاشة السادسة: مَعاني ═══ -->
+    <section id="screen-maani" class="screen">
+      <div class="wrap">
+        <header class="topbar">
+          <div class="brand"><span class="mini-seal">ع</span> مَعاني</div>
+          <div class="room-chip">رمز الديوان <b id="maani-code">—</b></div>
+        </header>
+
+        <div class="sanad-bar">
+          <div class="sanad-side">
+            <strong id="mn-me">—</strong>
+            <span class="sanad-score" id="mn-me-score">0</span>
+            <small class="sanad-role" id="mn-me-state"></small>
+          </div>
+          <div class="sanad-mid">
+            <div class="sanad-step" id="mn-step">—</div>
+            <div class="mn-track" id="mn-track"></div>
+          </div>
+          <div class="sanad-side end">
+            <strong id="mn-opp">بانتظار الخصم…</strong>
+            <span class="sanad-score" id="mn-opp-score">0</span>
+            <small class="sanad-role" id="mn-opp-state"></small>
+          </div>
+        </div>
+
+        <div class="panel invite" id="mn-invite" hidden>
+          <span class="case-tag">الدعوة</span>
+          <p class="invite-line">شارك هذا الرابط مع خصمك — يبدأ السباق حين يدخل</p>
+          <div class="invite-row">
+            <input type="text" id="mn-invite-link" readonly />
+            <button class="btn btn-ghost btn-sm" id="mn-copy-link">انسخ الرابط</button>
+          </div>
+        </div>
+
+        <button class="btn btn-primary" id="mn-start" hidden>ابدأ السباق</button>
+
+        <div class="mn-level" id="mn-level" hidden>
+          <span class="mn-level-num" id="mn-level-num">١</span>
+          <div class="mn-level-text">
+            <h3 id="mn-level-name">—</h3>
+            <p id="mn-level-brief">—</p>
+          </div>
+          <span class="mn-level-points" id="mn-level-points">—</span>
+        </div>
+
+        <!-- المستوى الأول: المقابلة -->
+        <div class="mn-pair" id="mn-pair" hidden>
+          <div class="word-slab" id="mn-word-a">—</div>
+          <div class="pair-link" id="mn-pair-link"><span id="mn-link-glyph">؟</span></div>
+          <div class="word-slab" id="mn-word-b">—</div>
+        </div>
+        <div class="mn-relations" id="mn-relations" hidden></div>
+
+        <!-- المستوى الثاني: الحصاد -->
+        <div class="mn-hunt" id="mn-hunt" hidden>
+          <p class="mn-ask" id="mn-hunt-ask">—</p>
+          <div class="mn-grid" id="mn-grid"></div>
+        </div>
+
+        <!-- المستوى الثالث: الدخيل -->
+        <div class="mn-intruder" id="mn-intruder" hidden>
+          <p class="mn-ask">خمسٌ يجمعها معنًى واحد… أخرِج الدخيلة</p>
+          <div class="mn-words" id="mn-words"></div>
+        </div>
+
+        <div class="panel mn-wait" id="mn-wait" hidden>
+          <div class="waiting"><i></i><i></i><i></i> <span id="mn-wait-text">—</span></div>
+        </div>
+
+        <div class="mn-verdict" id="mn-verdict" hidden>
+          <span class="mn-verdict-mark" id="mn-verdict-mark">✓</span>
+          <div class="mn-verdict-text">
+            <strong id="mn-verdict-title">—</strong>
+            <p id="mn-verdict-why">—</p>
+          </div>
+          <span class="mn-gain" id="mn-gain">—</span>
+          <button class="btn btn-primary btn-sm" id="mn-next">التالي</button>
+        </div>
+
+        <div class="panel sanad-over" id="mn-over" hidden>
+          <h2 class="rayed" id="mn-over-title">—</h2>
+          <p id="mn-over-score">—</p>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+
+  <!-- ═══ إعلان المستوى (مَعاني) ═══ -->
+  <div class="mn-banner" id="mn-banner" hidden>
+    <div class="mn-banner-box">
+      <span class="mn-banner-num" id="mn-banner-num">١</span>
+      <h2 id="mn-banner-name">—</h2>
+      <p id="mn-banner-brief">—</p>
+      <span class="mn-banner-points" id="mn-banner-points">—</span>
+    </div>
   </div>
 
 

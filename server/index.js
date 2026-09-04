@@ -15,6 +15,7 @@ import { WebSocketServer } from 'ws';
 
 import * as S from './state.js';
 import * as SN from './sanad.js';
+import * as MN from './maani.js';
 import * as judge from './judge.js';
 import { CARD_BY_ID, PHASE_LABELS } from './rules.js';
 import { loadEnv, lanAddress, ensureCert } from './setup.js';
@@ -90,8 +91,26 @@ const send = (ws, type, payload) => {
   if (ws?.readyState === 1) ws.send(JSON.stringify({ type, ...payload }));
 };
 
-/** آلة حالات اللعبة التي تُلعب في هذه الغرفة. */
-const engineOf = (room) => (room.game === 'sanad' ? SN : S);
+/** آلات حالات الألعاب المبنيّة — الغرفة تحمل لعبتها فتُختار منها. */
+const ENGINES = { muhakama: S, sanad: SN, maani: MN };
+const GAME_LABELS = { muhakama: 'المحاكمة', sanad: 'سَنَد', maani: 'مَعاني' };
+
+const engineOf = (room) => ENGINES[room.game] ?? S;
+
+/**
+ * لكل رسالة لعبتها. بلا هذا الحارس تُدمّر رسالةُ محاكمةٍ غرفةَ سَنَد، وتصرف
+ * نداءً مدفوعاً للقاضي في لعبة لا قاضي فيها. رسائل الدخول ('create'/'join')
+ * ليست هنا لأنها سابقة على معرفة الغرفة.
+ */
+const GAME_MESSAGES = {
+  muhakama: ['start-trial', 'advance', 'play-card', 'live', 'speech', 'retry-verdict', 'next-trial'],
+  sanad: ['sanad-start', 'sanad-choose', 'sanad-rule', 'sanad-next'],
+  maani: ['maani-start', 'maani-answer', 'maani-next'],
+};
+
+const GAME_OF_MESSAGE = new Map(
+  Object.entries(GAME_MESSAGES).flatMap(([game, types]) => types.map((t) => [t, game])),
+);
 
 /** يبثّ لكل لاعب لقطته هو — لا لقطة مشتركة، وإلا تسرّبت أسرار الخصم. */
 function broadcast(room) {
@@ -318,22 +337,17 @@ wss.on('connection', (ws) => {
       return;
     }
 
-    // كل رسالة تخصّ لعبتها. بلا هذا الحارس تُدمّر رسالةُ محاكمةٍ غرفةَ سَنَد،
-    // وتصرف نداءً مدفوعاً للقاضي في لعبة لا قاضي فيها.
-    const TRIAL_ONLY = ['start-trial', 'advance', 'play-card', 'live', 'speech',
-                        'retry-verdict', 'next-trial'];
-    const SANAD_ONLY = ['sanad-start', 'sanad-choose', 'sanad-rule', 'sanad-next'];
-    if (room && TRIAL_ONLY.includes(msg.type) && room.game === 'sanad') return;
-    if (room && SANAD_ONLY.includes(msg.type) && room.game !== 'sanad') return;
+    // كل رسالة تخصّ لعبتها (انظر GAME_MESSAGES)
+    const owner = GAME_OF_MESSAGE.get(msg.type);
+    if (room && owner && owner !== room.game) return;
 
     try {
       switch (msg.type) {
         case 'create': {
           const code = freshCode();
           playerId = randomUUID();
-          const game = msg.game === 'sanad' ? 'sanad' : 'muhakama';
-          const engine = game === 'sanad' ? SN : S;
-          const state = engine.createSession(code, playerId, (msg.name || 'لاعب').slice(0, 20));
+          const game = ENGINES[msg.game] ? msg.game : 'muhakama';
+          const state = ENGINES[game].createSession(code, playerId, (msg.name || 'لاعب').slice(0, 20));
           room = { state, game, sockets: new Map(), pastCharges: [] };
           room.sockets.set(playerId, ws);
           rooms.set(code, room);
@@ -347,7 +361,7 @@ wss.on('connection', (ws) => {
           room = rooms.get(code);
           if (!room) { send(ws, 'error', { error: 'لا يوجد ديوان بهذا الرمز' }); room = null; break; }
           if (msg.game && msg.game !== room.game) {
-            const label = room.game === 'sanad' ? 'سَنَد' : 'المحاكمة';
+            const label = GAME_LABELS[room.game] ?? room.game;
             send(ws, 'error', { error: `هذا الديوان يلعب «${label}» — اختر اللعبة نفسها` });
             room = null;
             break;
@@ -369,7 +383,8 @@ wss.on('connection', (ws) => {
           room.sockets.set(playerId, ws);
           send(ws, 'joined', { playerId, code, game: room.game, judges: publicJudges() });
           broadcast(room);
-          if (room.game !== 'sanad') announce(room, 'اكتمل الخصمان. ارفعوا الجلسة متى شئتم.');
+          // سجلّ القاضي للمحاكمة وحدها — غيرها لا لوح فيه يعرض النداء
+          if (room.game === 'muhakama') announce(room, 'اكتمل الخصمان. ارفعوا الجلسة متى شئتم.');
           break;
         }
 
@@ -455,6 +470,44 @@ wss.on('connection', (ws) => {
           if (room?.game !== 'sanad') break;
           const r = SN.next(room.state);
           if (!r.ok) { send(ws, 'error', { error: r.error }); break; }
+          broadcast(room);
+          break;
+        }
+
+        /* ─── معاني ─── */
+
+        case 'maani-start': {
+          if (room?.game !== 'maani') break;
+          const r = MN.startSession(room.state);
+          if (!r.ok) { send(ws, 'error', { error: r.error, soft: true }); break; }
+          broadcast(room);
+          break;
+        }
+
+        /**
+         * سباق: أول جوابٍ صحيح يُغلق السؤال. البثّ بعد كل إجابة — فمن أخطأ
+         * يُقفل عليه فوراً، وخصمه يرى أن الميدان خلا له.
+         */
+        case 'maani-answer': {
+          if (room?.game !== 'maani') break;
+          const r = MN.answer(room.state, playerId, msg.choice);
+          if (!r.ok) { send(ws, 'error', { error: r.error, soft: true }); break; }
+          broadcast(room);
+          for (const [pid, sock] of room.sockets) {
+            send(sock, 'maani-result', {
+              mine: pid === playerId,
+              correct: r.correct,
+              resolved: r.resolved,
+              winnerId: room.state.roundWinnerId,
+            });
+          }
+          break;
+        }
+
+        case 'maani-next': {
+          if (room?.game !== 'maani') break;
+          const r = MN.next(room.state);
+          if (!r.ok) { send(ws, 'error', { error: r.error, soft: true }); break; }
           broadcast(room);
           break;
         }

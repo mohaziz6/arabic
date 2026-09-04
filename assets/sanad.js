@@ -446,11 +446,15 @@ export function bindSanadUI() {
   // ربطٌ آمن: عنصرٌ مفقود لا يُسقط الشاشة كلها قبل أن تتصل
   const on = (sel, ev, fn) => $(sel)?.addEventListener(ev, fn);
 
-  on('#finale-close', 'click', () => {
-    const box = $('#finale');
-    box.classList.remove('is-open');
-    setTimeout(() => { box.hidden = true; }, 420);
-  });
+  // طبقة الختام مشتركة مع «مَعاني»: تُربط مرة واحدة مهما دخلت اللعبتان
+  const finale = $('#finale');
+  if (finale && !finale.dataset.closeBound) {
+    finale.dataset.closeBound = '1';
+    on('#finale-close', 'click', () => {
+      finale.classList.remove('is-open');
+      setTimeout(() => { finale.hidden = true; }, 420);
+    });
+  }
   $('#sn-start').addEventListener('click', () => send('sanad-start'));
   $('#sn-trust').addEventListener('click', () => send('sanad-rule', { ruling: 'trust' }));
   $('#sn-liar').addEventListener('click', () => send('sanad-rule', { ruling: 'liar' }));
