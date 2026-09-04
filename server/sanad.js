@@ -14,8 +14,16 @@ for (const f of FIGURES) {
       throw new Error(`سَنَد: ${f.name} / ${q.id} — يلزم ثلاث روايات`);
     }
     for (const kind of ['true', 'crafted', 'absurd']) {
-      if (!opts.some((o) => o.kind === kind)) {
-        throw new Error(`سَنَد: ${f.name} / ${q.id} — تنقصه رواية «${kind}»`);
+      const o = opts.find((x) => x.kind === kind);
+      if (!o) throw new Error(`سَنَد: ${f.name} / ${q.id} — تنقصه رواية «${kind}»`);
+
+      // بلا هذا التحقّق تمرّ روايةٌ بلا تلميح فيرى الخصم شارةً فارغة وسط جلسة
+      const words = String(o.hint ?? '').trim().split(/\s+/).filter(Boolean).length;
+      if (words !== 4) {
+        throw new Error(`سَنَد: ${f.name} / ${q.id} / ${kind} — التلميح ${words} كلمات لا أربعاً`);
+      }
+      if (o.text.includes(o.hint)) {
+        throw new Error(`سَنَد: ${f.name} / ${q.id} / ${kind} — التلميح مقتطع من الرواية حرفياً`);
       }
     }
   }
@@ -85,16 +93,6 @@ function shuffledDeck(n) {
   return pool.slice(0, n).map((f) => f.id);
 }
 
-/**
- * مطلع الرواية الذي يراه الخصم — ثلاث كلمات ثم حجب.
- * الحجب يجري **هنا في الخادم**: لو أُرسل النصّ كاملاً وأُخفي بالـ CSS
- * لقُرئ من أدوات المطور في ثانية، فانكشفت اللعبة.
- */
-const OPENING_WORDS = 3;
-
-const openingOf = (text) =>
-  String(text ?? '').trim().split(/\s+/).slice(0, OPENING_WORDS).join(' ');
-
 export const currentFigure = (s) =>
   s.status === 'round' ? FIGURE_BY_ID[s.deck[s.figureIndex]] ?? null : null;
 
@@ -118,7 +116,7 @@ export function choose(s, playerId, kind) {
   const option = currentFigure(s)?.[q.id]?.find((o) => o.kind === kind);
   if (!option) return { ok: false, error: 'رواية غير معروفة', state: s };
 
-  s.pick = { kind, points: POINTS[kind], text: option.text };
+  s.pick = { kind, points: POINTS[kind], text: option.text, hint: option.hint };
   s.phase = 'talk';
   return { ok: true, state: s };
 }
@@ -214,13 +212,14 @@ export function viewFor(s, viewerId) {
       : null,
 
     /*
-     * الراوي يرى روايته كاملة ليقرأ منها. والخصم لا يرى إلا مطلعها
-     * حتى الكشف — يُنصت إليه لا يقرأ عنه.
+     * الراوي يرى روايته كاملة ليقرأ منها. والخصم لا يصله إلا **تلميح** من أربع
+     * كلمات يعطيه فكرتها بلا وسمها — ليعرف عمّ يسأل، ويُنصت إلى الباقي.
+     * التلميح مكتوب مع الرواية لا مقتطع منها، فلا يفضح ألفاظها.
      */
     told: s.pick
       ? {
           text: (amNarrator || revealed) ? s.pick.text : null,
-          opening: openingOf(s.pick.text),
+          hint: s.pick.hint,
           kind: revealed ? s.pick.kind : null,
           points: revealed ? s.pick.points : null,
         }

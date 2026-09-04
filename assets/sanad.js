@@ -195,16 +195,17 @@ function flyThenCount(node, from, to, id) {
 }
 
 /** يعدّ الرقم تصاعدياً بلا مؤقّتات: rAF لا يعمل في تبويب خلفي فنستعمل الوقت. */
-function countUp(node, from, to, id) {
+function countUp(node, from, to, id, { cancellable = true } = {}) {
   const started = Date.now();
   const dur = 520;
+  const later = cancellable ? laterCancellable : ((fn, ms) => setTimeout(fn, ms));
   const step = () => {
     const t = Math.min(1, (Date.now() - started) / dur);
     const eased = 1 - Math.pow(1 - t, 3);
     const value = Math.round(from + (to - from) * eased);
     node.textContent = String(value);
     shownScores[id] = value;
-    if (t < 1) laterCancellable(step, 40);
+    if (t < 1) later(step, 40);
     else { shownScores[id] = to; node.textContent = String(to); }
   };
   step();
@@ -275,8 +276,8 @@ function renderPhase(s, prev) {
 }
 
 /**
- * الراوي يقرأ روايته كاملة، والخصم لا يرى إلا مطلعها ثم حجباً للشكل —
- * والبقية لم تصل المتصفح أصلاً، فلا تُقرأ من أدوات المطور.
+ * الراوي يقرأ روايته كاملة، والخصم لا يرى إلا تلميحها ثم حجباً للشكل —
+ * والرواية لم تصل المتصفح أصلاً، فلا تُقرأ من أدوات المطور.
  */
 function renderTold(s, full) {
   const box = $('#sn-told-text');
@@ -290,9 +291,10 @@ function renderTold(s, full) {
   // أسطر زخرفية ثابتة الطول: لا تفضح حتى طول الرواية
   const bars = [0.92, 1, 0.86, 0.44]
     .map((w) => `<span class="ink-bar" style="--w:${w}"></span>`).join('');
-  box.innerHTML = `<span class="told-opening">${esc(s.told?.opening ?? '')}</span>
+  box.innerHTML = `<span class="hint-tag">فكرتها</span>
+    <span class="told-opening">${esc(s.told?.hint ?? '')}</span>
     <span class="ink-bars">${bars}</span>
-    <span class="listen-note">أنصِت إليه — الحكاية عنده لا عندك</span>`;
+    <span class="listen-note">هذه فكرتها فقط — أنصِت إليه ليحكيها</span>`;
 }
 
 const KIND_LABEL = { true: 'كانت صحيحة', crafted: 'كذبة محكمة', absurd: 'كذبة فاضحة' };
@@ -317,16 +319,64 @@ function renderReveal(s, justRevealed) {
   }
 }
 
+let finaleShown = false;
+
+const FINALE = {
+  win:  { mark: '✦', title: 'أنت ثقةٌ في هذا الديوان', line: 'صدّقوك حين كذبتَ، وكذّبوك فما ضرّك.' },
+  lose: { mark: '✕', title: 'غلبك خصمك هذه المرة', line: 'قُرئت في وجهك الحكايةُ قبل أن تتمّها.' },
+  tie:  { mark: '=', title: 'تعادلتما', line: 'كلاكما كذب بقدر ما صدّق.' },
+};
+
 function renderOver(s) {
   for (const id of ['#sn-stage', '#sn-options', '#sn-waiting', '#sn-told', '#sn-ruling', '#sn-reveal']) hide($(id));
   stopTimer();
   const me = s.scores[s.me.id];
   const opp = s.scores[s.opponent?.id] ?? 0;
-  $('#sn-over-title').textContent = s.winnerId === null
-    ? 'تعادلتما'
-    : (s.winnerId === s.me.id ? 'أنت ثقةٌ في هذا الديوان' : 'غلبك خصمك هذه المرة');
+  const outcome = s.winnerId === null ? 'tie' : (s.winnerId === s.me.id ? 'win' : 'lose');
+
+  $('#sn-over-title').textContent = FINALE[outcome].title;
   $('#sn-over-score').textContent = `${s.me.name}: ${me} — ${s.opponent?.name ?? ''}: ${opp}`;
   reveal($('#sn-over'));
+
+  if (!finaleShown) { finaleShown = true; playFinale(s, outcome, me, opp); }
+}
+
+/** مشهد الختام: ختمٌ يهبط، والفائز يستقبله بأشعة والخاسر بظلّ. */
+async function playFinale(s, outcome, me, opp) {
+  const box = $('#finale');
+  const f = FINALE[outcome];
+
+  $('#finale-mark').textContent = f.mark;
+  $('#finale-title').textContent = f.title;
+  $('#finale-line').textContent = f.line;
+  $('#finale-me-name').textContent = s.me.name;
+  $('#finale-opp-name').textContent = s.opponent?.name ?? '';
+  $('#finale-me').textContent = '0';
+  $('#finale-opp').textContent = '0';
+  box.className = `finale ${outcome}`;
+
+  box.hidden = false;
+  void box.offsetWidth;                 // إعادة تدفّق: rAF لا يعمل في تبويب خلفي
+  box.classList.add('is-open');
+
+  if (reducedMotion()) {
+    box.classList.add('sealed');
+    $('#finale-me').textContent = String(me);
+    $('#finale-opp').textContent = String(opp);
+    return;
+  }
+
+  setTimeout(() => {
+    box.classList.add('sealed');
+    if (outcome === 'lose') sfx.wrong(); else sfx.right();
+  }, 320);
+
+  // الرصيدان يعدّان معاً بعد هبوط الختم
+  // غير قابلة للإلغاء: بثٌّ يصل أثناءها كان يجمّد الحصيلة على رقم ناقص
+  setTimeout(() => {
+    countUp($('#finale-me'), 0, me, '_finale-me', { cancellable: false });
+    countUp($('#finale-opp'), 0, opp, '_finale-opp', { cancellable: false });
+  }, 900);
 }
 
 /* ─────────── خيارات الراوي ─────────── */
@@ -393,6 +443,14 @@ function stopTimer() {
 /* ─────────── الربط ─────────── */
 
 export function bindSanadUI() {
+  // ربطٌ آمن: عنصرٌ مفقود لا يُسقط الشاشة كلها قبل أن تتصل
+  const on = (sel, ev, fn) => $(sel)?.addEventListener(ev, fn);
+
+  on('#finale-close', 'click', () => {
+    const box = $('#finale');
+    box.classList.remove('is-open');
+    setTimeout(() => { box.hidden = true; }, 420);
+  });
   $('#sn-start').addEventListener('click', () => send('sanad-start'));
   $('#sn-trust').addEventListener('click', () => send('sanad-rule', { ruling: 'trust' }));
   $('#sn-liar').addEventListener('click', () => send('sanad-rule', { ruling: 'liar' }));
