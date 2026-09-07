@@ -79,9 +79,11 @@ body::before {
   flex-direction: column;
 }
 
-/* خط الرقعة للعناوين الكبيرة فقط (≥30px) — دونها يصير مزدحماً وصعب القراءة.
-   ما عداها يستخدم خط المتن بوزن سميك. */
-.ruqaa,
+/* خط الرقعة لعناوين المشاهد وحدها — سبعة مواضع في الملف كله (هذه المجموعة،
+   و.judge-draw-box h2 و.armory-box h2 و.gavel-stamp و.sanad-over h2
+   و.finale-box h2 و.mn-banner-box h2). كلها عنوانٌ من كلمتين أو ثلاث يُلمح لحظةً.
+   كل ما يُقرأ فعلاً — كلمات اللعب والأسماء والأزرار والأرقام — بخط المتن بوزن
+   سميك: الرقعة تُبطئ الالتقاط، وفي لعبة سباق يكلّف ذلك نقاطاً. لا تُوسّعها. */
 .title,
 .section-head h2,
 .lobby h2 {
@@ -705,7 +707,7 @@ input.code {
 }
 
 .panel.case h3, .panel.verdict h3 {
-  font-family: 'Aref Ruqaa', serif;
+  font-weight: 600;
   font-size: 30px;
   line-height: 1.6;
   margin: 0 0 8px;
@@ -719,7 +721,7 @@ input.code {
 
 .session-result {
   margin: 14px 0 0;
-  font-family: 'Aref Ruqaa', serif;
+  font-weight: 700;
   font-size: 30px;
   color: var(--gold-deep);
 }
@@ -934,11 +936,11 @@ input.code {
 
 .judge-card.won .judge-fig .ghutra { fill: #7d6540; }
 
-.judge-meta strong { display: block; font-family: 'Aref Ruqaa', serif; font-size: 22px; }
+.judge-meta strong { display: block; font-size: 20px; }
 .judge-meta small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
 
 .judge-draw-name {
-  font-family: 'Aref Ruqaa', serif;
+  font-weight: 700;
   font-size: clamp(22px, 4vw, 32px);
   color: var(--gold-400, #e6c988);
   margin: 0 0 6px;
@@ -997,7 +999,7 @@ input.code {
 #judge-seat.seated .judge-plate { opacity: 1; display: inline-block; }
 #judge-seat .judge-plate { margin-top: -3px; }
 #judge-seat .phase { margin-top: 12px; }
-.judge-plate strong { display: block; font-family: 'Aref Ruqaa', serif; font-size: 18px; line-height: 1.5; }
+.judge-plate strong { display: block; font-size: 17px; line-height: 1.5; }
 .judge-plate small { display: block; color: #c3b391; font-size: 11px; }
 
 /* حافة الطاولة: القاضي خلفها واللوحة عليها */
@@ -1058,7 +1060,7 @@ input.code {
   color: var(--gold-400, #e6c988);
 }
 
-.weapon-btn-text strong { display: block; font-family: 'Aref Ruqaa', serif; font-size: 21px; line-height: 1.5; }
+.weapon-btn-text strong { display: block; font-size: 18px; line-height: 1.5; }
 .weapon-btn-text small { display: block; color: #bfae8b; font-size: 12px; }
 
 .weapon-hint { color: var(--muted); font-size: 12.5px; margin: 9px 2px 0; line-height: 1.7; }
@@ -1173,7 +1175,7 @@ input.code {
 .card-art .ink-dark { fill: #1e1710; }
 .card-art .strings { stroke: #1e1710; }
 
-.armory-card strong { font-family: 'Aref Ruqaa', serif; font-size: 19px; line-height: 1.5; }
+.armory-card strong { font-size: 17px; line-height: 1.5; }
 .armory-card small { color: var(--muted); font-size: 12px; line-height: 1.65; }
 
 .armory-content {
@@ -1233,7 +1235,7 @@ input.code {
 .strike-glyph .card-art { width: 84px; }
 
 .strike-inner h3 {
-  font-family: 'Aref Ruqaa', serif;
+  font-weight: 600;
   font-size: clamp(21px, 4vw, 30px);
   margin: 8px 0 8px;
   line-height: 1.6;
@@ -1349,7 +1351,7 @@ input.code {
 }
 
 .gavel-box h2 {
-  font-family: 'Aref Ruqaa', serif;
+  font-weight: 600;
   font-size: clamp(21px, 4vw, 31px);
   line-height: 1.75;
   color: #fdf6e8;
@@ -1516,7 +1518,7 @@ input.code {
 }
 
 .figure-card h2 {
-  font-family: 'Aref Ruqaa', serif;
+  font-weight: 700;
   font-size: clamp(28px, 5vw, 42px);
   margin: 14px 0 4px;
   line-height: 1.55;
@@ -1525,13 +1527,13 @@ input.code {
 .figure-era { color: var(--muted); font-size: 13.5px; margin: 0; }
 
 .q-num {
-  font-family: 'Aref Ruqaa', serif;
+  font-weight: 700;
   font-size: 17px;
   padding: 1px 14px;
 }
 
 .question-card h3 {
-  font-family: 'Aref Ruqaa', serif;
+  font-weight: 600;
   font-size: clamp(22px, 3.6vw, 30px);
   margin: 12px 0 4px;
   line-height: 1.6;
@@ -1589,7 +1591,6 @@ input.code {
   display: grid;
   place-items: center;
   border-radius: 50%;
-  font-family: 'Aref Ruqaa', serif;
   font-size: 19px;
   color: #fff;
   background: var(--muted);
@@ -1660,7 +1661,6 @@ input.code {
 
 .told-text {
   position: relative;
-  font-family: 'Aref Ruqaa', serif;
   font-size: clamp(19px, 2.9vw, 26px);
   line-height: 2;
   margin: 14px 0 0;
@@ -1714,7 +1714,7 @@ input.code {
 
 .rule-btn.trust .rule-glyph { background: var(--palm); }
 .rule-btn.liar .rule-glyph { background: var(--clay); }
-.rule-btn strong { font-family: 'Aref Ruqaa', serif; font-size: 25px; line-height: 1.45; }
+.rule-btn strong { font-size: 22px; line-height: 1.45; }
 .rule-btn small { color: var(--muted); font-size: 12.5px; }
 
 /* الكشف */
@@ -1756,7 +1756,6 @@ input.code {
 .reveal-kind.absurd { background: #fbeae5; color: #8a3f1c; }
 
 .reveal-gain {
-  font-family: 'Aref Ruqaa', serif;
   font-size: 21px;
   padding: 2px 16px;
   border-radius: 999px;
@@ -1769,7 +1768,6 @@ input.code {
 .truth-label { color: var(--muted); font-size: 13px; margin: 0 0 8px; }
 
 .truth-text {
-  font-family: 'Aref Ruqaa', serif;
   font-size: clamp(18px, 2.7vw, 24px);
   line-height: 2;
   margin: 0 0 20px;
@@ -1806,7 +1804,6 @@ input.code {
 }
 
 .told-opening {
-  font-family: 'Aref Ruqaa', serif;
   font-size: clamp(19px, 2.9vw, 26px);
   line-height: 1.9;
   color: var(--ink);
@@ -1849,7 +1846,6 @@ input.code {
   margin-top: 12px;
   color: var(--muted);
   font-size: 12.5px;
-  font-family: 'IBM Plex Sans Arabic', sans-serif;
 }
 
 /* النقاط تطير من بطاقة الكشف إلى لوح الفائز */
@@ -1861,7 +1857,6 @@ input.code {
   transform: translate(-50%, -50%);
   padding: 7px 18px;
   border-radius: 999px;
-  font-family: 'Aref Ruqaa', serif;
   font-size: 26px;
   line-height: 1.35;
   color: #fff;
@@ -1879,7 +1874,6 @@ input.code {
   display: block;                /* شارة فوق التلميح لا بجانبه */
   width: fit-content;
   margin-inline: auto;
-  font-family: 'IBM Plex Sans Arabic', sans-serif;
   font-size: 11.5px;
   font-weight: 600;
   letter-spacing: 1px;
@@ -1999,7 +1993,6 @@ input.code {
 }
 
 .finale-side span {
-  font-family: 'Aref Ruqaa', serif;
   font-size: 40px;
   line-height: 1.3;
   direction: ltr;
@@ -2007,7 +2000,7 @@ input.code {
 }
 
 .finale.win .finale-side:first-child span { color: var(--gold-400, #e6c988); }
-.finale-vs { font-family: 'Aref Ruqaa', serif; font-size: 22px; color: #8e8271; }
+.finale-vs { font-size: 22px; color: #8e8271; }
 
 @media (prefers-reduced-motion: reduce) {
   .finale.win.sealed .finale-seal,
@@ -2168,8 +2161,8 @@ input.code {
   border-radius: var(--radius);
   background: var(--white);
   box-shadow: var(--shadow-sm);
-  font-family: 'Aref Ruqaa', serif;
-  font-size: 32px;
+  font-weight: 600;
+  font-size: 30px;
   line-height: 1.6;
   text-align: center;
   transition: transform 0.5s var(--ease), border-color 0.3s var(--ease), background 0.3s var(--ease);
@@ -2297,7 +2290,6 @@ input.code {
   border-radius: 999px;
   border: 1px solid var(--gold-soft);
   background: var(--gold-tint);
-  font-family: 'IBM Plex Sans Arabic', sans-serif;
   font-size: 16px;
   font-weight: 600;
 }
