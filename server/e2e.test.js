@@ -825,3 +825,215 @@ test('الانضمام إلى ديوان المزاد بلعبة أخرى يُر
   assert.ok(c.errors[0].includes('المزاد'), `يذكر اللعبة: ${c.errors[0]}`);
   a.ws.close(); b.ws.close(); c.ws.close();
 });
+
+/* ═══════════════════════════════════════════════════════════════
+   المباراة: جولاتٌ من ألعابٍ مختلفة في ديوانٍ واحد
+   ═══════════════════════════════════════════════════════════════ */
+
+/** ديوانُ مباراة. العميلان يتتبّعان `match-switch` كما يفعل المتصفح. */
+async function matchRoom(games, nameA = 'أ', nameB = 'ب') {
+  const a = client(); await a.open;
+  a.switches = []; b_switches: { /* يُملأ أدناه */ }
+  a.ws.on('message', (raw) => {
+    const m = JSON.parse(raw);
+    if (m.type === 'match-switch') a.switches.push(m.game);
+  });
+  a.send('create', { game: games[0], games, name: nameA });
+  await until(() => a.state?.code);
+  const b = client(); await b.open;
+  b.switches = [];
+  b.ws.on('message', (raw) => {
+    const m = JSON.parse(raw);
+    if (m.type === 'match-switch') b.switches.push(m.game);
+  });
+  b.send('join', { game: games[0], code: a.state.code, name: nameB });
+  await until(() => b.state?.match);
+  return { a, b };
+}
+
+/** يُنهي جولة «مَعاني» بإجاباتٍ صحيحةٍ كلّها من لاعبٍ واحد. */
+async function sweepMaani(winner, other) {
+  for (let i = 0; i < 40 && winner.state?.status !== 'over'; i++) {
+    const q = winner.state?.question;
+    if (!q) break;
+    if (q.kind === 'pair') winner.send('maani-answer', { answer: q.solution ?? 'synonym' });
+    else winner.send('maani-answer', { answer: q.grid?.[0] ?? '' });
+    await settle(90);
+    if (winner.state?.phase === 'reveal') { winner.send('maani-next'); await settle(90); }
+  }
+}
+
+test('المباراة: الوعاء ثابت، والجولة تتبدّل بلعبتها للطرفين معاً', async () => {
+  const { a, b } = await matchRoom(['sanad', 'man-ana']);
+
+  assert.equal(a.state.match.total, 2, 'مباراةٌ من جولتين');
+  assert.equal(a.state.match.roundNo, 1);
+  assert.equal(a.state.game, 'sanad', 'تبدأ بأولى ألعابها');
+  assert.equal(a.state.match.myPot, 0);
+
+  // رسالةُ لعبةٍ ليست جولةَ الآن تُرفض — حارس العزل يتحرّك مع المباراة
+  a.send('man-ana-start');
+  await settle(200);
+  assert.equal(a.state.game, 'sanad', 'لم تُدمَّر حالةُ الجولة الجارية');
+
+  // نُنهي «سَنَد» كاملةً: أربع جولات، والراوي يختار والمنصِت يحكم
+  a.send('sanad-start');
+  assert.ok(await until(() => a.state?.phase === 'pick'), 'بدأت سَنَد');
+  for (let i = 0; i < 20 && a.state?.status !== 'over'; i++) {   // ٤ شخصيات × ٣ أسئلة
+    const nar = a.state.me.isNarrator ? a : b;
+    const lis = nar === a ? b : a;
+    nar.send('sanad-choose', { kind: 'absurd' });
+    if (!await until(() => lis.state?.phase === 'talk')) break;
+    lis.send('sanad-rule', { ruling: 'liar' });          // الكاشف يأخذ الخمس دائماً
+    await until(() => a.state?.phase === 'reveal' || a.state?.status === 'over');
+    if (a.state?.status === 'over') break;
+    a.send('sanad-next');
+    await until(() => a.state?.phase === 'pick' || a.state?.status === 'over');
+  }
+  assert.equal(a.state.status, 'over', 'انتهت سَنَد');
+
+  // وعاء الجولة صُرف من تلقائه عند أول بثٍّ لحالةٍ منتهية
+  const potA = a.state.match.myPot;
+  const potB = b.state.match.myPot;
+  assert.equal(potA + potB, a.state.match.results[0].tie ? 2 : 3,
+    `وعاءٌ ثابت لا نقاطُ اللعبة: ${potA}+${potB}`);
+  assert.equal(a.state.match.over, false, 'وبقيت جولة');
+  assert.equal(a.state.match.lastRound, false);
+
+  // الجولة التالية: يطلبها طرفٌ واحد فتتبدّل عند الاثنين
+  b.send('match-next');
+  assert.ok(await until(() => a.state?.game === 'man-ana' && b.state?.game === 'man-ana'),
+    'تبدّلت اللعبة للطرفين');
+  assert.deepEqual(a.switches, ['man-ana'], 'ووصل الإعلان');
+  assert.deepEqual(b.switches, ['man-ana']);
+  assert.equal(a.state.match.roundNo, 2);
+  assert.equal(a.state.match.lastRound, true, 'وهي الأخيرة');
+  assert.equal(a.state.match.myPot, potA, 'والوعاء محفوظ عبر التبديل');
+  assert.equal(a.state.status, 'lobby', 'واللعبة الجديدة نظيفة');
+
+  // والآن رسالة «سَنَد» هي المرفوضة — الحارس انقلب مع الجولة
+  a.send('sanad-start');
+  await settle(200);
+  assert.equal(a.state.game, 'man-ana');
+  assert.equal(a.state.status, 'lobby');
+
+  a.ws.close(); b.ws.close();
+});
+
+test('المباراة: لا تقدّم قبل انتهاء لعبة الجولة', async () => {
+  const { a, b } = await matchRoom(['maani', 'sanad']);
+  a.send('match-next');
+  await settle(250);
+  assert.equal(a.state.game, 'maani', 'لم تتبدّل');
+  assert.equal(a.state.match.roundNo, 1);
+  assert.deepEqual(a.switches, [], 'ولا إعلان');
+  a.ws.close(); b.ws.close();
+});
+
+test('لعبةٌ مفردة بلا مباراة: لا لقطةَ مباراةٍ أصلاً', async () => {
+  const a = client(); await a.open;
+  a.send('create', { game: 'sanad', games: ['sanad'], name: 'أ' });
+  await until(() => a.state?.code);
+  assert.equal(a.state.match, null, 'واحدةٌ ليست مباراة');
+  a.ws.close();
+});
+
+test('المباراة: الانضمام بأيّ لعبةٍ من جولاتها مقبول، وبغيرها مرفوض', async () => {
+  const { a } = await matchRoom(['maani', 'mazad']);
+
+  const late = client(); await late.open;
+  late.send('join', { game: 'mazad', code: a.state.code, name: 'ج' });
+  await settle(250);
+  assert.ok(late.errors.length > 0, 'الديوان ممتلئ — لا مقعد ثالث');
+
+  const wrong = client(); await wrong.open;
+  wrong.send('join', { game: 'muhakama', code: a.state.code, name: 'د' });
+  await settle(250);
+  assert.ok(wrong.errors.some((e) => e.includes('يلعب')), `لعبةٌ خارج المباراة تُرفض: ${wrong.errors}`);
+
+  a.ws.close(); late.ws.close(); wrong.ws.close();
+});
+
+test('العودة بالمعرّف تستعيد المقعد نفسه لا أيَّ مقعدٍ شاغر', async () => {
+  const { a, b } = await matchRoom(['sanad', 'maani'], 'محمد', 'خالد');
+  const idA = a.id;
+  const idB = b.id;
+  assert.notEqual(idA, idB);
+
+  // ينقطع الاثنان معاً — كما يقع تماماً عند تبديل جولة المباراة
+  a.ws.close(); b.ws.close();
+  await settle(220);
+
+  const a2 = client(); await a2.open;
+  a2.send('join', { game: 'sanad', code: idA && b.state.code, name: 'محمد', playerId: idA });
+  const b2 = client(); await b2.open;
+  b2.send('join', { game: 'sanad', code: b.state.code, name: 'خالد', playerId: idB });
+  await until(() => a2.state?.me && b2.state?.me);
+
+  assert.equal(a2.id, idA, 'محمد رجع لمقعده');
+  assert.equal(b2.id, idB, 'وخالد لمقعده');
+  assert.equal(a2.state.me.name, 'محمد');
+  assert.equal(b2.state.me.name, 'خالد');
+
+  a2.ws.close(); b2.ws.close();
+});
+
+test('المباراة: جولةُ محاكمةٍ تُحسم رغم أن حالتها تُسمّى session-over', async () => {
+  const { a, b } = await matchRoom(['muhakama', 'maani'], 'محمد', 'خالد');
+  assert.equal(a.state.game, 'muhakama');
+
+  // نُنهي المحاكمة بأسرع طريق: ثلاث محاكمات بمرافعاتٍ قصيرة على القاضي الوهمي
+  a.send('start-trial');
+  assert.ok(await until(() => a.state?.trial?.phase, 8000), 'بدأت المحاكمة');
+  for (let i = 0; i < 40 && a.state?.status !== 'session-over'; i++) {
+    if (a.state.trial?.phase === 'case') { a.send('advance'); await settle(150); continue; }
+    const sp = a.state.trial?.speakerId === a.id ? a : b;
+    sp.send('speech', { transcript: 'مرافعةٌ مفهومةٌ في القضية وفيها دليلٌ وبيان' });
+    await settle(400);
+    if (a.state?.status === 'trial' && S_OVER(a.state)) { a.send('next-trial'); await settle(600); }
+  }
+  assert.equal(a.state.status, 'session-over', 'انتهت جلسة المحاكمة');
+
+  // الحاسم: وعاءُ الجولة صُرف رغم اختلاف اسم الحالة عن بقية الألعاب
+  assert.ok(a.state.match.results.length === 1, 'حُسمت الجولة');
+  assert.equal(a.state.match.myPot + b.state.match.myPot,
+    a.state.match.results[0].tie ? 2 : 3, 'وصُرف وعاؤها');
+
+  a.send('match-next');
+  assert.ok(await until(() => a.state?.game === 'maani' && b.state?.game === 'maani', 6000),
+    'وتقدّمت المباراة بعدها');
+  a.ws.close(); b.ws.close();
+});
+
+/** المحاكمة انتهت وينتظر «التالية»؟ — تُقرأ من لقطة الحالة نفسها. */
+const S_OVER = (st) => Boolean(st?.trial?.verdict);
+
+test('انقطاع الطرفين معاً لا يُبخّر الغرفة ولا يُجمّد مؤقّتها', async () => {
+  const { a, b } = await matchRoom(['man-ana', 'maani'], 'محمد', 'خالد');
+  const code = a.state.code;
+  const idA = a.id;
+  const idB = b.id;
+
+  a.send('man-ana-start');
+  assert.ok(await until(() => a.state?.phase === 'clues'), 'بدأت «مَن أنا»');
+  assert.ok(a.state.clueMsLeft > 0, 'والعدّاد يجري');
+
+  a.ws.close(); b.ws.close();                 // كما يقع تماماً عند تبديل الجولة
+  await settle(300);
+
+  const a2 = client(); await a2.open;
+  a2.send('join', { game: 'man-ana', code, name: 'محمد', playerId: idA });
+  const b2 = client(); await b2.open;
+  b2.send('join', { game: 'man-ana', code, name: 'خالد', playerId: idB });
+  assert.ok(await until(() => a2.state?.me && b2.state?.me), 'رجعا إلى الغرفة نفسها');
+  assert.equal(a2.id, idA, 'كلٌّ إلى مقعده');
+  assert.equal(b2.id, idB);
+  assert.equal(a2.state.phase, 'clues', 'والجولة مستمرّة');
+
+  // المؤقّت أُطفئ حين خلت الغرفة، فلا بدّ أن يكون قد أُعيد عند عودتهما
+  const clue = a2.state.progress.clue;
+  assert.ok(await until(() => a2.state?.progress.clue > clue, 4000),
+    'التلميح تقدّم بعد العودة — المؤقّت لم يبقَ مطفأً');
+
+  a2.ws.close(); b2.ws.close();
+});

@@ -85,6 +85,7 @@
 
         <div class="actionbar">
           <div class="pick" id="pick-label">لم تختر بعد</div>
+          <p class="pick-hint" id="pick-hint" hidden>هذه بطاقةُ عرضٍ لم تُبنَ بعد — لا تدخل مباراة.</p>
           <div class="actionbar-actions">
             <button class="back" id="btn-back">رجوع</button>
             <button class="btn btn-primary btn-sm" id="btn-confirm" disabled>تأكيد الاختيار</button>
@@ -658,7 +659,48 @@
         <div class="finale-vs">×</div>
         <div class="finale-side"><strong id="finale-opp-name">—</strong><span id="finale-opp">0</span></div>
       </div>
-      <button class="btn btn-ghost btn-sm finale-close" type="button" id="finale-close">أغلق</button>
+      <div class="finale-match" id="finale-match" hidden>
+        <p class="finale-round" id="finale-round">—</p>
+        <div class="finale-pot" id="finale-pot"></div>
+      </div>
+      <div class="finale-acts">
+        <button class="btn btn-primary btn-sm" type="button" id="finale-next" hidden>اللعبة التالية</button>
+        <button class="btn btn-ghost btn-sm" type="button" id="finale-close">أغلق</button>
+        <button class="btn btn-ghost btn-sm" type="button" id="finale-home" data-home>الرئيسية</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ لوحة الجلسة — زرٌّ جانبيّ قبل اللعب: الحاضرون والرمز والدعوة ═══ -->
+  <button class="session-btn" type="button" id="session-btn"
+          aria-expanded="false" aria-controls="session-panel">
+    <span class="session-btn-glyph" aria-hidden="true">◆</span>
+    <span class="session-btn-text">الجلسة</span>
+  </button>
+
+  <div class="session-panel" id="session-panel" hidden role="dialog"
+       aria-modal="false" aria-label="لوحة الجلسة">
+    <div class="session-box">
+      <header class="session-head">
+        <h2>الجلسة</h2>
+        <button class="btn btn-ghost btn-sm" type="button" id="ses-close">أغلق</button>
+      </header>
+
+      <section class="session-sec">
+        <span class="case-tag">الحاضرون</span>
+        <ul class="ses-people" id="ses-people"></ul>
+      </section>
+
+      <section class="session-sec">
+        <span class="case-tag">رمز الديوان</span>
+        <p class="code-display" id="ses-code">—</p>
+        <div class="invite-row" id="ses-invite" hidden>
+          <input type="text" id="ses-link" readonly aria-label="رابط الدعوة" />
+          <button class="btn btn-ghost btn-sm" type="button" id="ses-copy">انسخ الرابط</button>
+        </div>
+      </section>
+
+      <button class="btn btn-ghost" type="button" id="ses-home">الخروج للرئيسية</button>
     </div>
   </div>
 

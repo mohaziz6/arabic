@@ -18,6 +18,7 @@ import * as SN from './sanad.js';
 import * as MN from './maani.js';
 import * as MA from './man-ana.js';
 import * as MZ from './mazad.js';
+import * as MT from './match.js';
 import * as judge from './judge.js';
 import { CARD_BY_ID, PHASE_LABELS } from './rules.js';
 import { loadEnv, lanAddress, ensureCert } from './setup.js';
@@ -100,6 +101,47 @@ const GAME_LABELS = {
 };
 
 const engineOf = (room) => ENGINES[room.game] ?? S;
+const GAME_IDS = Object.keys(ENGINES);
+
+/**
+ * **`room.game` لعبةُ الجولة الجارية لا لعبةُ الغرفة الأبدية.** حين تتقدّم
+ * المباراة تتبدّل، فيتحرّك حارس `GAME_MESSAGES` معها كما هو بلا إضعاف: رسالةُ
+ * لعبةٍ انقضت جولتُها تُرفض كما تُرفض رسالةُ لعبةٍ لم تُختَر أصلاً.
+ */
+function switchGame(room, game) {
+  clearClue(room);
+  clearBell(room);
+  const seats = Object.values(room.state.players).map((p) => ({ id: p.id, name: p.name }));
+  const [host, ...rest] = seats;
+  room.game = game;
+  room.busy = false;
+  room.judging = [];
+  room.pastCharges = [];
+  room.state = ENGINES[game].createSession(room.state.code, host.id, host.name);
+  for (const p of rest) ENGINES[game].addPlayer(room.state, p.id, p.name);
+  for (const p of Object.values(room.state.players)) p.connected = room.sockets.has(p.id);
+}
+
+/**
+ * انتهت لعبةُ الجولة؟ — **المحاكمة تسمّيها `session-over` والأربعُ `over`**،
+ * فالفحص هنا يقبل الاسمين. اعتمادُ اسمٍ واحد كان يجعل جولةَ محاكمةٍ لا تُحسم
+ * أبداً فتموت المباراة عندها.
+ */
+const gameEnded = (st) => st?.status === 'over' || st?.status === 'session-over';
+
+/**
+ * يصرف وعاء الجولة حين تنتهي لعبتُها. يُستدعى من `broadcast` لأنه المخنق الذي
+ * تمرّ منه كل حالةٍ تصل اللاعب — و`recordRound` نفسها لا تصرف الوعاء مرّتين.
+ */
+function settleRound(room) {
+  if (!room.match || !gameEnded(room.state)) return;
+  MT.recordRound(room.match, {
+    game: room.game,
+    winnerId: room.state.winnerId ?? null,
+    scores: room.state.scores ?? room.state.wins ?? {},
+    playerIds: Object.keys(room.state.players),
+  });
+}
 
 /**
  * لكل رسالة لعبتها. بلا هذا الحارس تُدمّر رسالةُ محاكمةٍ غرفةَ سَنَد، وتصرف
@@ -128,6 +170,43 @@ const GAME_OF_MESSAGE = new Map(
  */
 const CLUE_MS = process.env.CLUE_MS !== undefined
   ? Number(process.env.CLUE_MS) : MA.CLUE_SECONDS * 1000;
+
+/**
+ * مهلةُ إمهالٍ قبل حذف غرفةٍ خلت من المقابس.
+ *
+ * **لازمةٌ للمباراة**: تبديل الجولة يُغلق مقبسَي الطرفين معاً ثم يعيدهما بعد
+ * أجزاءٍ من الثانية، فحذفُ الغرفة لحظة خلوّها كان يُبخّر المباراة وأرصدتها
+ * بينهما. وهي تُصلح كذلك انقطاعاً عابراً للشبكة عند الطرفين معاً.
+ */
+const REAP_MS = process.env.REAP_MS !== undefined ? Number(process.env.REAP_MS) : 20000;
+
+/**
+ * يلغي حذفاً مؤجَّلاً **ويعيد مؤقّتات الغرفة** — يُستدعى عند كل عودةٍ إليها.
+ *
+ * `scheduleReap` يُطفئ مؤقّت التلميح وجرس المزاد (لا يجوز أن يعملا على غرفةٍ
+ * بلا أحد)، فلولا إعادتُهما هنا لعاد اللاعبان إلى «مَن أنا» وعدّادُها واقفٌ
+ * على صفرٍ إلى الأبد — وهو الانقطاعُ العابر الذي وُجدت المهلةُ من أجله.
+ */
+function keepAlive(room) {
+  if (!room) return;
+  const wasReaping = Boolean(room.reaper);
+  if (room.reaper) { clearTimeout(room.reaper); room.reaper = null; }
+  if (!wasReaping) return;
+  if (room.game === 'man-ana') scheduleClue(room);
+  else if (room.game === 'mazad') scheduleBell(room);
+}
+
+/** يؤجّل حذف غرفةٍ خلت. المؤقّتات تُلغى فوراً: لا تعمل على غرفةٍ بلا أحد. */
+function scheduleReap(room) {
+  clearClue(room);                 // مؤقّتٌ على غرفةٍ خاوية يبقى يعمل ويمنع الخروج
+  clearBell(room);
+  keepAlive(room);
+  room.reaper = setTimeout(() => {
+    room.reaper = null;
+    if (room.sockets.size === 0) rooms.delete(room.state.code);
+  }, REAP_MS);
+  room.reaper.unref?.();           // مهلةٌ معلَّقة لا تمنع خروج العملية
+}
 
 /** يوقف مؤقّت الغرفة — يجب أن يُستدعى قبل كل إعادة جدولة وعند إغلاق الغرفة. */
 function clearClue(room) {
@@ -183,6 +262,7 @@ function scheduleBell(room) {
 
 /** يبثّ لكل لاعب لقطته هو — لا لقطة مشتركة، وإلا تسرّبت أسرار الخصم. */
 function broadcast(room) {
+  settleRound(room);                      // وعاء الجولة يُصرف قبل أن تُرى نتيجتها
   const engine = engineOf(room);
   // ما تبقّى من دورة التلميح يعيش في الغرفة لا في الحالة: آلة الحالات خالصة بلا وقت
   const clueMsLeft = room.game === 'man-ana' && room.clueAt && room.state.phase === 'clues'
@@ -191,6 +271,8 @@ function broadcast(room) {
   for (const [playerId, ws] of room.sockets) {
     const state = engine.viewFor(room.state, playerId);
     if (clueMsLeft !== null) state.clueMsLeft = clueMsLeft;
+    state.match = MT.viewFor(room.match, playerId);
+    state.game = room.game;
     send(ws, 'state', { state });
   }
 }
@@ -457,9 +539,14 @@ wss.on('connection', (ws) => {
         case 'create': {
           const code = freshCode();
           playerId = randomUUID();
-          const game = ENGINES[msg.game] ? msg.game : 'muhakama';
+          // لعبةٌ واحدة أو مباراةُ جولات — والفرق أن `room.match` موجود أو لا
+          const picks = Array.isArray(msg.games) && msg.games.length ? msg.games : [msg.game];
+          const match = MT.createMatch(picks, GAME_IDS, [playerId]);
+          if (!match.games.length) match.games.push('muhakama');
+          const game = MT.currentGame(match);
           const state = ENGINES[game].createSession(code, playerId, (msg.name || 'لاعب').slice(0, 20));
           room = { state, game, sockets: new Map(), pastCharges: [] };
+          if (match.games.length > 1) room.match = match;
           room.sockets.set(playerId, ws);
           rooms.set(code, room);
           send(ws, 'joined', { playerId, code, game, judges: publicJudges() });
@@ -471,7 +558,11 @@ wss.on('connection', (ws) => {
           const code = String(msg.code || '').toUpperCase();
           room = rooms.get(code);
           if (!room) { send(ws, 'error', { error: 'لا يوجد ديوان بهذا الرمز' }); room = null; break; }
-          if (msg.game && msg.game !== room.game) {
+          keepAlive(room);                 // عادَ أحدهم، فلا حذف
+          // في المباراة تُقبل أيُّ لعبةٍ من جولاتها: الداخل يُوجَّه للجولة الجارية
+          const belongs = msg.game === room.game
+            || (room.match && room.match.games.includes(msg.game));
+          if (msg.game && !belongs) {
             const label = GAME_LABELS[room.game] ?? room.game;
             send(ws, 'error', { error: `هذا الديوان يلعب «${label}» — اختر اللعبة نفسها` });
             room = null;
@@ -479,9 +570,20 @@ wss.on('connection', (ws) => {
           }
           const name = (msg.name || 'لاعب').slice(0, 20);
 
-          // مقعد لاعبٍ انقطع يُستعاد بنفس الاسم بدل أن يُقال "الديوان ممتلئ"
-          const vacant = Object.values(room.state.players)
-            .find((p) => !p.connected && !room.sockets.has(p.id));
+          // عودةٌ بمعرّفٍ يملكه صاحبه: أدقّ من التقاط أي مقعدٍ شاغر، ولازمٌ حين
+          // تتبدّل لعبة المباراة فيعود الخصمان معاً في اللحظة نفسها — الالتقاط
+          // بالشغور وحده كان يخلط مقعديهما.
+          // مقبسٌ قديم لم يُنظَّف بعد لا يمنع صاحبه من العودة: نُغلقه ونُخليه له.
+          // بلا هذا يسقط على «أيّ مقعدٍ شاغر» فيأخذ مقعد خصمه عند التبديل.
+          const mine = msg.playerId ? room.state.players[msg.playerId] : null;
+          if (mine) {
+            const stale = room.sockets.get(msg.playerId);
+            if (stale && stale.readyState !== 1) { room.sockets.delete(msg.playerId); }
+            else if (stale) { try { stale.close(); } catch { /* مغلقٌ سلفاً */ } room.sockets.delete(msg.playerId); }
+          }
+          const vacant = (mine && !room.sockets.has(msg.playerId) ? mine : null)
+            ?? Object.values(room.state.players)
+              .find((p) => !p.connected && !room.sockets.has(p.id));
           if (vacant) {
             playerId = vacant.id;
             vacant.connected = true;
@@ -492,10 +594,28 @@ wss.on('connection', (ws) => {
             if (!added.ok) { send(ws, 'error', { error: added.error }); room = null; break; }
           }
           room.sockets.set(playerId, ws);
+          MT.seat(room.match, playerId);
           send(ws, 'joined', { playerId, code, game: room.game, judges: publicJudges() });
           broadcast(room);
           // سجلّ القاضي للمحاكمة وحدها — غيرها لا لوح فيه يعرض النداء
           if (room.game === 'muhakama') announce(room, 'اكتمل الخصمان. ارفعوا الجلسة متى شئتم.');
+          break;
+        }
+
+        /**
+         * الجولة التالية في المباراة. لا تُستدعى إلا بعد انتهاء لعبة الجولة —
+         * ووعاؤها صُرف سلفاً في `settleRound` عند أول بثٍّ لحالتها المنتهية،
+         * فهذه تُقدِّم المؤشّر وتبني الجلسة التالية لا غير.
+         */
+        case 'match-next': {
+          if (!room?.match || !gameEnded(room.state)) break;
+          const next = MT.advance(room.match);
+          if (!next) { broadcast(room); break; }
+          switchGame(room, next);
+          for (const [pid, sock] of room.sockets) {
+            send(sock, 'match-switch', { game: next, roundNo: room.match.idx + 1, mine: pid === playerId });
+          }
+          broadcast(room);
           break;
         }
 
@@ -708,11 +828,8 @@ wss.on('connection', (ws) => {
     room.sockets.delete(playerId);
     const player = room.state.players[playerId];
     if (player) player.connected = false;
-    if (room.sockets.size === 0) {
-      clearClue(room);               // مؤقّتٌ على غرفةٍ ميتة يبقى يعمل ويمنع الخروج
-      clearBell(room);
-      rooms.delete(room.state.code);
-    } else broadcast(room);
+    if (room.sockets.size === 0) scheduleReap(room);
+    else broadcast(room);
   });
 });
 

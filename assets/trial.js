@@ -30,20 +30,34 @@ let secondsLeft = 0;
 
 /* ─────────── الاتصال ─────────── */
 
-export function connect({ mode, name, code, onJoined, onError }) {
+/** يطلب الجولة التالية من المباراة — أيُّ الطرفين. */
+export function sendMatchNext() {
+  if (ws?.readyState === 1) ws.send(JSON.stringify({ type: 'match-next' }));
+}
+
+/** يُغلق المقبس ويُنسيه — تُستدعى عند تبديل جولة المباراة وعند الخروج. */
+export function leave() {
+  if (!ws) return;
+  const sock = ws;
+  ws = null;                         // قبل الإغلاق: لئلا يُعاد الدخول على مقبسٍ يُغلق
+  try { sock.close(); } catch { /* مغلقٌ سلفاً */ }
+}
+
+export function connect({ mode, name, code, playerId, games, onJoined, onError, onSwitch }) {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   ws = new WebSocket(`${proto}://${location.host}`);
 
   ws.addEventListener('open', () => {
-    ws.send(JSON.stringify(mode === 'create' ? { type: 'create', name } : { type: 'join', code, name }));
+    ws.send(JSON.stringify(mode === 'create' ? { type: 'create', game: 'muhakama', games, name } : { type: 'join', game: 'muhakama', code, name, playerId }));
   });
 
   ws.addEventListener('message', (ev) => {
     const m = JSON.parse(ev.data);
-    if (m.type === 'joined') { judges = m.judges ?? []; onJoined?.(m); }
+    if (m.type === 'match-switch') { leave(); onSwitch?.(m.game, m.roundNo); }
+    else if (m.type === 'joined') { judges = m.judges ?? []; onJoined?.(m); }
     else if (m.type === 'judge-draw') { judges = m.judges; revealJudge(m.judges, m.chosen); }
     else if (m.type === 'weapon-thrown') showStrike(m);
-    else if (m.type === 'state') render(m.state);
+    else if (m.type === 'state') { render(m.state); window.Diwan?.onState?.(m.state); }
     else if (m.type === 'judge') onJudge(m);
     else if (m.type === 'error') onError?.(m.error);
   });

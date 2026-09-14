@@ -446,6 +446,26 @@ input.code {
 
 .card[aria-pressed='true'] .check { opacity: 1; transform: scale(1); }
 
+/* رقم الجولة على البطاقة — يظهر في المباراة وحدها (اختيارٌ مفرد لا يُرقَّم) */
+.order {
+  position: absolute;
+  top: 15px;
+  inset-inline-end: 15px;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  border: 1px solid var(--gold);
+  border-radius: 999px;
+  background: var(--white);
+  color: var(--gold-deep);
+  display: grid;
+  place-items: center;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.order:empty { display: none; }
+
 .check {
   position: absolute;
   top: 15px;
@@ -3230,3 +3250,179 @@ input.code {
   .mz-bid-card, .mz-count, .mz-judged, .mz-deck, .mz-bidding, .mz-challenge,
   .mz-note { transition: none; }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   لوحة الجلسة، وشريط المباراة، وذيل الختام
+   ═══════════════════════════════════════════════════════════════ */
+
+/* زرّ الجلسة: لصيقٌ بحافة الصفحة، ويختفي داخل الميدان (قرار صريح: قبل اللعب وحده) */
+.session-btn {
+  position: fixed;
+  inset-inline-start: 0;
+  top: 38%;
+  z-index: 30;
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  padding: 16px 10px;
+  border: 1px solid var(--line);
+  border-inline-start: none;
+  border-radius: 0 var(--radius) var(--radius) 0;
+  background: var(--card);
+  color: var(--ink-soft);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  transition: transform 0.2s var(--ease), color 0.2s var(--ease);
+}
+
+.session-btn:hover { transform: translateX(3px); color: var(--gold-deep); }
+.session-btn-glyph { color: var(--gold); font-size: 11px; }
+.session-btn-text { writing-mode: vertical-rl; letter-spacing: 2px; }
+
+/* يختفي حين تبدأ الجلسة فعلاً — لا لمجرّد أننا في شاشة لعبة، فالمُنشئ
+   ينتظر خصمه داخل الميدان وهو أحوج ما يكون إلى رابط الدعوة */
+body.playing .session-btn { display: none; }
+
+/* واللوح مفتوحٌ لا حاجة لزرّه: له زرُّ إغلاقه، وبقاؤه يقع فوق اللوح نفسه */
+body.ses-open .session-btn { display: none; }
+
+.session-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  justify-content: flex-start;
+  background: rgba(31, 27, 22, 0.34);
+  opacity: 0;
+  transition: opacity 0.22s var(--ease);
+}
+
+.session-panel.is-open { opacity: 1; }
+
+.session-box {
+  display: grid;
+  align-content: start;
+  gap: 18px;
+  width: min(360px, 90vw);
+  height: 100%;
+  padding: 22px 20px;
+  overflow-y: auto;
+  border-inline-end: 1px solid var(--line);
+  background: var(--bg);
+  box-shadow: var(--shadow);
+  transform: translateX(-14px);
+  transition: transform 0.22s var(--ease);
+}
+
+.session-panel.is-open .session-box { transform: none; }
+.session-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.session-head h2 { margin: 0; font-size: 19px; font-weight: 700; }
+.session-head .btn { width: auto; }
+.session-sec { display: grid; gap: 10px; justify-items: start; }
+.session-sec .code-display { margin: 0; }
+.session-sec .invite-row { width: 100%; }
+
+.ses-people { display: grid; gap: 8px; width: 100%; margin: 0; padding: 0; list-style: none; }
+
+.ses-person {
+  display: grid;
+  gap: 2px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+}
+
+.ses-person b { font-size: 15px; font-weight: 600; }
+.ses-person span { color: var(--muted); font-size: 12.5px; }
+.ses-person.is-me { border-color: var(--gold-soft); background: var(--gold-tint); }
+.ses-person.waiting { border-style: dashed; background: transparent; }
+.ses-person.waiting b { color: var(--muted); font-weight: 600; }
+
+/* شريط المباراة في رأس الميدان */
+.match-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 14px;
+  border: 1px solid var(--gold-soft);
+  border-radius: 999px;
+  background: var(--gold-tint);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.ms-round { color: var(--gold-deep); }
+.ms-dots { display: inline-flex; gap: 5px; }
+
+.ms-dot {
+  width: 9px;
+  height: 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  background: transparent;
+}
+
+.ms-dot.now { border-color: var(--gold-deep); background: var(--gold); }
+.ms-dot.won { border-color: var(--palm); background: var(--palm); }
+.ms-dot.lost { border-color: var(--line-strong); background: var(--line-strong); }
+.ms-dot.tie { border-color: var(--gold-deep); background: transparent; }
+
+.ms-pot { display: inline-flex; align-items: center; gap: 7px; color: var(--ink-soft); }
+.ms-pot i { color: var(--muted); font-style: normal; font-size: 11.5px; }
+
+/* أرقام الوعاء لاتينية معزولة كبقية أرقام النقاط في المشروع */
+.ms-pot b, .fp-side b {
+  direction: ltr;
+  unicode-bidi: isolate;
+  font-weight: 700;
+}
+
+/* ذيل الختام */
+.finale-match { display: grid; gap: 10px; justify-items: center; margin-top: 4px; }
+
+.finale-round {
+  margin: 0;
+  color: var(--gold-deep);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.finale-pot { display: flex; align-items: center; gap: 14px; }
+.fp-side { display: grid; justify-items: center; gap: 2px; }
+.fp-side b { font-size: 26px; color: var(--sand-100); }
+.fp-side.lead b { color: var(--gold); }
+
+/* طبقة الختام داكنة، فألوانُ النصّ الثانوي فيها ليست ألوانَ اللوح الفاتح:
+   `--muted` عليها شبه مختفٍ. نستعمل الرمادي نفسه الذي في `.finale-side strong`. */
+.fp-side i { color: #b6a894; font-style: normal; font-size: 12px; }
+.fp-vs { color: #8b7f6e; font-size: 14px; }
+
+.finale-acts { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 6px; }
+.finale-acts .btn { width: auto; }
+
+@media (max-width: 620px) {
+  .session-btn { top: auto; bottom: 18px; padding: 10px 12px; }
+  .session-btn-text { writing-mode: horizontal-tb; letter-spacing: 0; }
+  .match-strip { width: 100%; justify-content: center; }
+}
+
+/* الحركة اختيارية */
+@media (prefers-reduced-motion: reduce) {
+  .session-panel, .session-box, .session-btn { transition: none; }
+}
+
+/* تنبيهُ بطاقة العرض غير المبنيّة في شريط الاختيار */
+.pick-hint {
+  margin: 2px 0 0;
+  color: var(--gold-deep);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+/* أزرار الشريط: `.btn` هنا عرضُه 100% فيبتلع الصفّ ما لم يُكبح صراحةً */
+.ms-act { width: auto; padding: 5px 12px; font-size: 12.5px; }

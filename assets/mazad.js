@@ -83,20 +83,35 @@ const sfx = {
 let ws = null;
 let view = null;
 
-export function connect({ mode, name, code, onJoined, onError }) {
+/** يطلب الجولة التالية من المباراة — أيُّ الطرفين. */
+export function sendMatchNext() {
+  if (ws?.readyState === 1) ws.send(JSON.stringify({ type: 'match-next' }));
+}
+
+/** يُغلق المقبس ويُنسيه — تُستدعى عند تبديل جولة المباراة وعند الخروج. */
+export function leave() {
+  finaleShown = false;
+  if (!ws) return;
+  const sock = ws;
+  ws = null;                         // قبل الإغلاق: لئلا يُعاد الدخول على مقبسٍ يُغلق
+  try { sock.close(); } catch { /* مغلقٌ سلفاً */ }
+}
+
+export function connect({ mode, name, code, playerId, games, onJoined, onError, onSwitch }) {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   ws = new WebSocket(`${proto}://${location.host}`);
 
   ws.addEventListener('open', () => {
     ws.send(JSON.stringify(mode === 'create'
-      ? { type: 'create', game: 'mazad', name }
-      : { type: 'join', game: 'mazad', code, name }));
+      ? { type: 'create', game: 'mazad', games, name }
+      : { type: 'join', game: 'mazad', code, name, playerId }));
   });
 
   ws.addEventListener('message', (ev) => {
     const m = JSON.parse(ev.data);
-    if (m.type === 'joined') onJoined?.(m);
-    else if (m.type === 'state') render(m.state);
+    if (m.type === 'match-switch') { leave(); onSwitch?.(m.game, m.roundNo); }
+    else if (m.type === 'joined') onJoined?.(m);
+    else if (m.type === 'state') { render(m.state); window.Diwan?.onState?.(m.state); }
     else if (m.type === 'mazad-bid') { sfx.bid(); bumpBid(); }
     else if (m.type === 'mazad-hand') { sfx.hand(); }
     else if (m.type === 'mazad-bell') { sfx.bell(); flashTimer(); }
@@ -438,6 +453,9 @@ function countUp(node, from, to, id, { cancellable = true } = {}) {
 
 /* ── الختام ── */
 
+// تُصفَّر مع كل جلسةٍ جديدة على الصفحة نفسها (جولةُ مباراةٍ تالية، أو إعادة
+// دخول): راية لا تُصفَّر تعني أن الجلسة الثانية لا ختام لها — ولا ذيلَ مباراةٍ
+// ولا زرَّ جولةٍ تالية معه.
 let finaleShown = false;
 
 const FINALE = {
