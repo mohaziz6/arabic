@@ -434,7 +434,14 @@
 
         <button class="btn btn-primary" id="ma-start" hidden>ابدأ الجلسة</button>
 
+        <!-- الوقت يمينَ المسرح والنقاط يسارَه، والشعار بينهما: عدّادٌ فوق النقاط
+             كان يجعل الرقمين عموداً واحداً يُقرأ أحدهما مكان الآخر -->
         <div class="ma-stage" id="ma-stage" hidden>
+          <div class="ma-clock">
+            <div class="timer-ring" id="ma-timer-ring" hidden><span id="ma-timer">—</span></div>
+            <small class="ma-clock-label" id="ma-clock-label" hidden>للتلميح التالي</small>
+          </div>
+
           <div class="ma-emblem" id="ma-emblem">
             <div class="ma-emblem-art" id="ma-emblem-art"></div>
             <h2 class="ma-emblem-title">مَن أنا؟</h2>
@@ -442,7 +449,6 @@
           </div>
 
           <div class="ma-meter">
-            <div class="timer-ring" id="ma-timer-ring" hidden><span id="ma-timer">—</span></div>
             <div class="ma-points-box">
               <span class="ma-points" id="ma-points">—</span>
               <small id="ma-points-label">—</small>
@@ -668,6 +674,17 @@
         <button class="btn btn-ghost btn-sm" type="button" id="finale-close">أغلق</button>
         <button class="btn btn-ghost btn-sm" type="button" id="finale-home" data-home>الرئيسية</button>
       </div>
+    </div>
+  </div>
+
+  <!-- ═══ قرعة سَنَد: ثلاث شخصيات تهبط فيختار الراوي من يروي عنه ═══ -->
+  <div class="sn-draw" id="sn-draw" hidden>
+    <div class="sn-draw-box">
+      <div class="najdi-band"></div>
+      <h2 id="sn-draw-title">عمَّن تروي؟</h2>
+      <p class="sn-draw-sub" id="sn-draw-sub">اختر شخصيةً تحسن الكذب عليها</p>
+      <div class="sn-draw-deck" id="sn-draw-deck"></div>
+      <p class="sn-draw-note" id="sn-draw-note" hidden>وخصمك يرى من تركتَ كما يرى من أخذت.</p>
     </div>
   </div>
 

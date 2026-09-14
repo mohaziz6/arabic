@@ -228,7 +228,11 @@ function renderClues(s, prev) {
     void strip.offsetWidth;
     strip.classList.add('landed');
   }
-  [...box.children].forEach((c, i) => c.classList.toggle('old', i > 0));
+  // الأحدث في مسرحه وحده، والأقدم ينزل تحته مطويّاً أصغر
+  [...box.children].forEach((c, i) => {
+    c.classList.toggle('lead', i === 0);
+    c.classList.toggle('old', i > 0);
+  });
 
   if (s.era) { $('#ma-era').textContent = s.era; reveal($('#ma-era')); }
   else hide($('#ma-era'));
@@ -276,6 +280,7 @@ function startTimer(msLeft) {
   endsAt = Date.now() + Math.max(0, msLeft);
   const ring = $('#ma-timer-ring');
   ring.hidden = false;
+  $('#ma-clock-label').hidden = false;
   paintTimer();
   // بالوقت لا بـ rAF: الأخير لا يعمل في تبويب خلفي فيتجمّد عدّاد من لا ينظر
   timer = setInterval(paintTimer, 250);
@@ -294,6 +299,7 @@ function stopTimer() {
   if (timer) { clearInterval(timer); timer = null; }
   const ring = $('#ma-timer-ring');
   ring.hidden = true;
+  $('#ma-clock-label').hidden = true;
   ring.classList.remove('urgent');
 }
 

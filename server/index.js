@@ -150,7 +150,7 @@ function settleRound(room) {
  */
 const GAME_MESSAGES = {
   muhakama: ['start-trial', 'advance', 'play-card', 'live', 'speech', 'retry-verdict', 'next-trial'],
-  sanad: ['sanad-start', 'sanad-choose', 'sanad-rule', 'sanad-next'],
+  sanad: ['sanad-start', 'sanad-draw', 'sanad-choose', 'sanad-rule', 'sanad-next'],
   maani: ['maani-start', 'maani-answer', 'maani-next'],
   'man-ana': ['man-ana-start', 'man-ana-guess', 'man-ana-next'],
   mazad: ['mazad-start', 'mazad-config', 'mazad-open', 'mazad-raise', 'mazad-hand',
@@ -673,6 +673,16 @@ wss.on('connection', (ws) => {
           if (room?.game !== 'sanad') break;
           const r = SN.startSession(room.state);
           if (!r.ok) { send(ws, 'error', { error: r.error }); break; }
+          broadcast(room);
+          break;
+        }
+
+        /** قرعة الجولة: الراوي يسحب بطاقةً من ثلاث، والطرفان يريان أيَّها سحب. */
+        case 'sanad-draw': {
+          if (room?.game !== 'sanad') break;
+          const r = SN.drawPick(room.state, playerId, msg.index);
+          if (!r.ok) { send(ws, 'error', { error: r.error }); break; }
+          for (const sock of room.sockets.values()) send(sock, 'sanad-drawn', { index: r.card.index });
           broadcast(room);
           break;
         }

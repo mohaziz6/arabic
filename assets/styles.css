@@ -2314,22 +2314,33 @@ input.code {
   font-weight: 600;
 }
 
+/* شبكةٌ منتظمة لا صفوفٌ متطايرة: خمسة أعمدة تقتسم العرض كلَّه، فتملأ المربّعاتُ
+   ما كان فراغاً على الشاشات العريضة بدل أن تتكوّم في الوسط. والعدد ١٥ كما هو
+   (`GRID_SIZE`) فلا تتغيّر صعوبة السؤال — يتغيّر حجمُ ما يُلتقط لا عددُه. */
 .mn-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 9px;
-  justify-content: center;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
 }
 
 .word-chip {
-  padding: 10px 16px;
+  display: grid;
+  place-items: center;
+  /* مربّعٌ لا شريط: يرتفع مع عرض الشاشة فيملأ الفراغ تحته بدل أن يتمدّد عرضاً وحده */
+  min-height: clamp(84px, 8.5vw, 124px);
+  padding: 12px 10px;
   border: 1px solid var(--line);
-  border-radius: 999px;
+  /* مربّعٌ مبرومُ الزوايا لا شارةٌ بيضاوية — أقربُ لقوس الطين النجدي في البطاقات */
+  border-radius: 20px;
   background: var(--white);
   box-shadow: var(--shadow-sm);
   color: inherit;
   font-family: inherit;
-  font-size: 15px;
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.5;
+  text-align: center;
+  overflow-wrap: anywhere;
   cursor: pointer;
   opacity: 0;
   transform: translateY(10px) scale(0.94);
@@ -2463,11 +2474,18 @@ input.code {
   70% { transform: translateX(-3px); }
 }
 
+@media (max-width: 900px) {
+  .mn-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
 @media (max-width: 620px) {
   .word-slab { font-size: 25px; padding: 20px 12px; }
   .mn-pair { gap: 8px; }
   .pair-link { width: 42px; height: 42px; font-size: 18px; }
   .mn-relations { grid-template-columns: 1fr; }
+  /* على الجوال ثلاثة أعمدة: خمسةٌ تسحق الكلمة إلى حرفين في السطر */
+  .mn-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; }
+  .word-chip { min-height: 68px; font-size: 16px; border-radius: 16px; }
   .mn-verdict { grid-template-columns: auto 1fr; }
   /* مقصورةٌ على شبكة «مَعاني»: `.mn-gain` صنفٌ مشترك تستعمله «مَن أنا» و«المزاد»
      أيضاً، وقاعدةُ `grid-column` غير مقصورةٍ تفرض عموداً ثانياً على لوحٍ عموده واحد */
@@ -2490,7 +2508,8 @@ input.code {
 
 .ma-stage {
   display: grid;
-  grid-template-columns: 1fr auto;
+  /* الوقت ثم الشعار ثم النقاط — وفي RTL يقع الأول يميناً */
+  grid-template-columns: auto 1fr auto;
   align-items: center;
   gap: 20px;
   padding: 18px 22px;
@@ -2621,6 +2640,21 @@ input.code {
 
 /* ── التلميحات: مخطوطات تنزلق داخلة ── */
 
+.ma-clock { display: grid; gap: 6px; justify-items: center; }
+
+.ma-clock .timer-ring {
+  width: 74px;
+  height: 74px;
+  font-size: 26px;
+}
+
+.ma-clock-label {
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  text-align: center;
+}
+
 .ma-clues {
   display: grid;
   gap: 10px;
@@ -2649,12 +2683,36 @@ input.code {
 
 .clue-strip.landed { opacity: 1; transform: none; }
 
-/* الأقدم يخفت ويتراجع: الأحدث هو الذي يُقرأ الآن */
+/* الأحدث في مسرحه: مساحةٌ أوسع وخطٌّ أبرز — هو النصّ الذي يُقرأ تحت الضغط،
+   وسائرُه سجلٌّ يُراجَع. والفرق بالحجم لا بالخط (Ruqaa للعناوين وحدها). */
+.clue-strip.lead {
+  gap: 16px;
+  padding: 22px 24px;
+  border-width: 2px;
+  box-shadow: var(--shadow-md);
+}
+
+.clue-strip.lead > p {
+  font-size: clamp(18px, 2.1vw, 23px);
+  font-weight: 600;
+  line-height: 1.85;
+}
+
+.clue-strip.lead .clue-num {
+  width: 34px;
+  height: 34px;
+  font-size: 15px;
+}
+
+/* الأقدم يخفت ويتراجع وينزل أصغر: الأحدث هو الذي يُقرأ الآن */
 .clue-strip.old {
   border-color: var(--line);
   background: var(--sand-100);
   opacity: 0.62;
+  padding: 10px 14px;
 }
+
+.clue-strip.old > p { font-size: 14px; line-height: 1.7; }
 
 .clue-strip p { margin: 0; line-height: 1.85; }
 
@@ -2801,8 +2859,13 @@ input.code {
 }
 
 @media (max-width: 620px) {
-  .ma-stage { grid-template-columns: 1fr; justify-items: center; }
-  .ma-meter { grid-auto-flow: column; align-items: center; }
+  /* على الجوال: الوقت والنقاط صفٌّ واحد تحت الشعار — ثلاثة أعمدة تسحقه */
+  .ma-stage { grid-template-columns: auto auto; justify-content: center; justify-items: center; }
+  .ma-clock { order: 2; }
+  .ma-emblem { order: 1; grid-column: 1 / -1; }
+  .ma-meter { order: 3; grid-auto-flow: column; align-items: center; }
+  .ma-clock .timer-ring { width: 58px; height: 58px; font-size: 21px; }
+  .clue-strip.lead { padding: 16px 16px; }
   .ma-reveal-head { grid-template-columns: auto 1fr; }
   .ma-reveal-head .mn-gain { grid-column: 2; justify-self: start; }
   .ma-answer-row { flex-wrap: wrap; }
@@ -3268,7 +3331,7 @@ input.code {
   border: 1px solid var(--line);
   border-inline-start: none;
   border-radius: 0 var(--radius) var(--radius) 0;
-  background: var(--card);
+  background: var(--white);
   color: var(--ink-soft);
   box-shadow: var(--shadow-sm);
   cursor: pointer;
@@ -3311,8 +3374,8 @@ body.ses-open .session-btn { display: none; }
   padding: 22px 20px;
   overflow-y: auto;
   border-inline-end: 1px solid var(--line);
-  background: var(--bg);
-  box-shadow: var(--shadow);
+  background: var(--sand-50);
+  box-shadow: var(--shadow-md);
   transform: translateX(-14px);
   transition: transform 0.22s var(--ease);
 }
@@ -3333,7 +3396,7 @@ body.ses-open .session-btn { display: none; }
   padding: 10px 14px;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  background: var(--card);
+  background: var(--white);
 }
 
 .ses-person b { font-size: 15px; font-weight: 600; }
@@ -3426,3 +3489,137 @@ body.ses-open .session-btn { display: none; }
 
 /* أزرار الشريط: `.btn` هنا عرضُه 100% فيبتلع الصفّ ما لم يُكبح صراحةً */
 .ms-act { width: auto; padding: 5px 12px; font-size: 12.5px; }
+
+/* ═══════════════════════════════════════════════════════════════
+   قرعة سَنَد — ثلاث شخصيات تهبط فيختار الراوي
+   ═══════════════════════════════════════════════════════════════ */
+
+.sn-draw {
+  position: fixed;
+  inset: 0;
+  z-index: 36;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(31, 27, 22, 0.55);
+  opacity: 0;
+  transition: opacity 0.24s var(--ease);
+}
+
+.sn-draw.is-open { opacity: 1; }
+
+/* تنسحب مرئيّةً ليرى الطرفان ما سُحب، لكنها لا تبتلع نقراً: لوحُ الروايات
+   كُشف تحتها في دورة العرض نفسها، فنقرةٌ عليه تقع على الطبقة لا على الزرّ. */
+.sn-draw.is-closing { pointer-events: none; }
+
+.sn-draw-box {
+  width: min(880px, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  padding: 26px 24px 28px;
+  border: 1px solid var(--gold-soft);
+  border-radius: var(--radius);
+  background: var(--sand-50);
+  box-shadow: var(--shadow-md);
+  text-align: center;
+}
+
+.sn-draw-box h2 { margin: 14px 0 4px; font-size: 22px; font-weight: 700; }
+.sn-draw-sub { margin: 0 0 20px; color: var(--muted); font-size: 14px; }
+
+.sn-draw-note {
+  margin: 18px 0 0;
+  color: var(--gold-deep);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.sn-draw-deck {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.sn-draw-card {
+  display: grid;
+  align-content: start;
+  justify-items: center;
+  gap: 6px;
+  padding: 20px 14px 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--white);
+  box-shadow: var(--shadow-sm);
+  color: inherit;
+  font-family: inherit;
+  cursor: pointer;
+  /* تهبط من أعلى واحدةً بعد أخرى — والتتابع من `setTimeout` في الترميز لا من CSS */
+  opacity: 0;
+  transform: translateY(-26px) rotate(-2deg);
+  transition: opacity 0.4s var(--ease), transform 0.4s var(--ease),
+              border-color 0.25s var(--ease), box-shadow 0.25s var(--ease);
+}
+
+.sn-draw-card.landed { opacity: 1; transform: none; }
+
+.sn-draw-card:hover:not(:disabled) {
+  transform: translateY(-5px);
+  border-color: var(--gold);
+  box-shadow: var(--shadow-md);
+}
+
+.sn-draw-card:disabled { cursor: default; }
+
+/* قوسٌ طينيّ يحمل أول حرف الاسم — كما في بطاقات الكتالوج */
+.sn-draw-seal {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 52px;
+  margin-bottom: 4px;
+  border: 1px solid var(--gold-soft);
+  border-radius: 50% 50% 14px 14px;
+  background: var(--gold-tint);
+  color: var(--gold-deep);
+  font-size: 21px;
+  font-weight: 700;
+}
+
+.sn-draw-card strong { font-size: 16.5px; font-weight: 700; line-height: 1.6; }
+.sn-draw-card em { color: var(--muted); font-size: 12.5px; font-style: normal; }
+
+.sn-draw-ask {
+  margin-top: 6px;
+  padding: 4px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--sand-100);
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* المسحوبة تكبر وتُذهَّب، والمتروكتان تخفتان — والمنصِت يرى الفرق */
+.sn-draw-card.taken {
+  border-color: var(--gold);
+  background: linear-gradient(180deg, var(--gold-tint), var(--white) 52%);
+  box-shadow: 0 0 0 3px rgba(192, 138, 62, 0.18), var(--shadow-md);
+  animation: draw-take 0.5s var(--ease);
+}
+
+.sn-draw-card.left-behind { opacity: 0.4; transform: scale(0.95); }
+
+@keyframes draw-take {
+  40% { transform: scale(1.07); }
+}
+
+@media (max-width: 620px) {
+  .sn-draw-deck { grid-template-columns: 1fr; gap: 10px; }
+  .sn-draw-card { grid-template-columns: auto 1fr; justify-items: start; text-align: start; }
+  .sn-draw-seal { grid-row: span 3; margin-bottom: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sn-draw, .sn-draw-card { transition: none; }
+  .sn-draw-card.taken { animation: none; }
+}

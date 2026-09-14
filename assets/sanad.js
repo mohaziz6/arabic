@@ -92,9 +92,11 @@ export function connect({ mode, name, code, playerId, games, onJoined, onError, 
     if (m.type === 'match-switch') { leave(); onSwitch?.(m.game, m.roundNo); }
     else if (m.type === 'joined') onJoined?.(m);
     else if (m.type === 'state') { render(m.state); window.Diwan?.onState?.(m.state); }
+    else if (m.type === 'sanad-drawn') sfx.pick();   // يسمعها الطرفان لا الساحب وحده
     else if (m.type === 'sanad-verdict') sfx[m.iWon ? 'right' : 'wrong']();
     else if (m.type === 'error') {
       $('#sn-options')?.classList.remove('locked');   // وإلا قُفلت الخيارات أبداً
+      if (view?.phase === 'draw' && view?.myDraw) lockDeck(null);   // ولا رفٌّ ميت
       onError?.(m.error);
     }
   });
@@ -137,10 +139,106 @@ function render(s) {
   }
 
   $('#sn-step').textContent =
-    `الشخصية ${arNum(s.progress.figure)} من ${arNum(s.progress.figures)} — السؤال ${arNum(s.progress.question)}`;
+    `الجولة ${arNum(s.progress.round)} من ${arNum(s.progress.rounds)}`;
 
+  renderDraw(s, prev);
   renderStage(s, prev);
   renderPhase(s, prev);
+}
+
+/* ─────────── القرعة: ثلاث شخصيات تهبط ─────────── */
+
+/**
+ * طبقةٌ تغطّي الشاشة في مطلع كل جولة. **يراها الطرفان** (قرار مستخدم صريح):
+ * الراوي يسحب منها، والمنصِت يشاهد أيَّها تُرِكَت — ومن رأى خصمه يترك المتنبي
+ * عرف شيئاً عنه.
+ */
+function renderDraw(s, prev) {
+  const layer = $('#sn-draw');
+  const drawing = s.phase === 'draw';
+  const fresh = prev?.phase !== 'draw' || prev?.progress?.round !== s.progress.round;
+
+  if (!drawing) {
+    if (!layer.hidden && prev?.phase === 'draw') closeDraw(s);
+    return;
+  }
+  if (!fresh) return;
+
+  const mine = Boolean(s.myDraw);
+  $('#sn-draw-title').textContent = mine ? 'عمَّن تروي؟' : 'خصمك يختار…';
+  $('#sn-draw-sub').textContent = mine
+    ? 'اختر شخصيةً تحسن الكذب عليها'
+    : 'ثلاثٌ أمامه، وسترى أيَّها أخذ وأيَّها ترك';
+  $('#sn-draw-note').hidden = !mine;
+
+  const deck = $('#sn-draw-deck');
+  deck.innerHTML = s.offer.map((c, i) => `
+    <button class="sn-draw-card" type="button" data-i="${i}" ${mine ? '' : 'disabled'}>
+      <span class="sn-draw-seal">${esc(sealLetter(c.figure.name))}</span>
+      <strong>${esc(c.figure.name)}</strong>
+      <em>${esc(c.figure.era)}</em>
+      <span class="sn-draw-ask">${esc(c.question.brief)}</span>
+    </button>`).join('');
+
+  [...deck.children].forEach((card, i) => {
+    if (reducedMotion()) card.classList.add('landed');
+    else setTimeout(() => { card.classList.add('landed'); sfx.deal(); }, 160 * i);
+    if (mine) card.addEventListener('click', () => pickCard(i, card));
+  });
+
+  layer.classList.remove('is-closing');
+  layer.hidden = false;
+  void layer.offsetWidth;              // إعادة تدفّق: rAF لا يعمل في تبويب خلفي
+  layer.classList.add('is-open');
+}
+
+/** حرف الختم: تُتخطّى أداة التعريف — «الخنساء» ختمُها «خ» لا ألفٌ لكل معرَّف. */
+function sealLetter(name) {
+  const t = String(name ?? '').trim();
+  const bare = t.startsWith('ال') && t.length > 2 ? t.slice(2) : t;
+  return bare[0] ?? '؟';
+}
+
+/**
+ * يسحب بطاقةً ويقفل الرفّ بانتظار الخادم.
+ *
+ * **لا يُقفَل إلا إن خرجت الرسالة فعلاً**: `send` يسقط بصمتٍ على مقبسٍ مغلق،
+ * فقفلٌ متفائلٌ قبلها كان يترك الراوي أمام رفٍّ ميتٍ لا مخرج منه إلا إعادة
+ * تحميل الصفحة. والرفض من الخادم يفكّه كذلك (انظر مناولة `error`).
+ */
+function pickCard(i, card) {
+  if (card.classList.contains('taken') || ws?.readyState !== 1) return;
+  send('sanad-draw', { index: i });
+  lockDeck(i);
+  // لا نغمة هنا: `sanad-drawn` يبثّها الخادم للطرفين، فنقرةٌ واحدة لا نقرتان
+}
+
+/** يقفل رفّ القرعة ويميّز المسحوبة من المتروكتين. `at = null` يفكّ القفل. */
+function lockDeck(at) {
+  const deck = $('#sn-draw-deck');
+  if (!deck) return;
+  [...deck.children].forEach((c, i) => {
+    c.disabled = at !== null;
+    c.classList.toggle('taken', at !== null && i === at);
+    c.classList.toggle('left-behind', at !== null && i !== at);
+  });
+}
+
+/** يُغلق مشهد القرعة بعد أن يرى الطرفان ما سُحب. */
+function closeDraw(s) {
+  const layer = $('#sn-draw');
+  // تبقى مرئيّةً لحظةً ليرى الطرفان ما سُحب، لكنها **لا تبتلع النقر**: لوحُ
+  // الروايات كُشف تحتها في دورة العرض نفسها، فنقرةٌ عليه تقع على الطبقة.
+  layer.classList.add('is-closing');
+  lockDeck(s.chosenIndex);
+  const wait = reducedMotion() ? 0 : 900;
+  setTimeout(() => {
+    layer.classList.remove('is-open');
+    setTimeout(() => {
+      layer.hidden = true;
+      layer.classList.remove('is-closing');
+    }, reducedMotion() ? 0 : 240);
+  }, wait);
 }
 
 /** ما هو معروض الآن على لوح النقاط — يتخلّف عن الحالة أثناء الانميشن. */
@@ -233,7 +331,7 @@ function renderStage(s, prev) {
   const changed = prev?.figure?.id !== s.figure.id;
   $('#sn-figure-name').textContent = s.figure.name;
   $('#sn-figure-era').textContent = s.figure.era;
-  $('#sn-q-num').textContent = arNum(s.progress.question);
+  $('#sn-q-num').textContent = arNum(s.progress.round);
   $('#sn-question').textContent = s.question.prompt;
   $('#sn-question-brief').textContent = s.question.brief;
 
@@ -247,7 +345,16 @@ function renderStage(s, prev) {
 
 function renderPhase(s, prev) {
   const isNarrator = Boolean(s.me?.isNarrator);
-  const phaseChanged = prev?.phase !== s.phase || prev?.progress?.question !== s.progress.question;
+  const phaseChanged = prev?.phase !== s.phase || prev?.progress?.round !== s.progress.round;
+
+  // مرحلة القرعة: المشهد في طبقته، واللوح تحته ينتظر
+  if (s.phase === 'draw') {
+    stopTimer();
+    for (const id of ['#sn-options', '#sn-told', '#sn-ruling', '#sn-reveal']) hide($(id));
+    $('#sn-wait-text').textContent = s.myDraw ? 'اسحب شخصيتك…' : 'خصمك يسحب شخصيته…';
+    reveal($('#sn-waiting'));
+    return;
+  }
 
   // مرحلة الاختيار
   if (s.phase === 'pick') {

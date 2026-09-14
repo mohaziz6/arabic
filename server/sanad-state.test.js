@@ -3,21 +3,78 @@ import assert from 'node:assert/strict';
 import * as G from './sanad.js';
 import { QUESTIONS, POINTS } from './sanad-figures.js';
 
-const fixedDeck = (n) => ['mutanabbi', 'jahiz', 'khansa', 'hatim'].slice(0, n);
+/** قرعةٌ ثابتة: ثلاث بطاقات معلومة، فلا عشوائيةَ في الاختبار. */
+const fixedOffer = () => [
+  { figureId: 'mutanabbi', questionId: 'origin' },
+  { figureId: 'jahiz', questionId: 'moment' },
+  { figureId: 'khansa', questionId: 'ending' },
+];
 
-function started() {
+/** جلسةٌ بدأت وسُحبت بطاقتُها الأولى — أي عند مرحلة اختيار الرواية. */
+function started(pick = 0) {
   const s = G.createSession('AB12', 'p1', 'محمد');
   G.addPlayer(s, 'p2', 'خالد');
-  G.startSession(s, fixedDeck);
+  G.startSession(s, fixedOffer);
+  G.drawPick(s, G.narratorId(s), pick);
   return s;
 }
 
-test('الأدوار متساوية: كل لاعب يروي عن شخصيتين بالتناوب', () => {
-  const s = started();
-  assert.equal(s.deck.length, 4);
-  assert.deepEqual(s.narrators, ['p1', 'p2', 'p1', 'p2']);
+test('الأدوار متساوية: الراوي يتناوب جولةً جولة', () => {
+  const s = G.createSession('AB12', 'p1', 'محمد');
+  G.addPlayer(s, 'p2', 'خالد');
+  G.startSession(s, fixedOffer);
+  assert.equal(s.narrators.length, G.ROUNDS);
+  assert.deepEqual(s.narrators.slice(0, 4), ['p1', 'p2', 'p1', 'p2']);
   assert.equal(s.narrators.filter((n) => n === 'p1').length,
                s.narrators.filter((n) => n === 'p2').length, 'عدد متساوٍ');
+});
+
+test('القرعة: ثلاث بطاقات يراها الطرفان، والسحب للراوي وحده', () => {
+  const s = G.createSession('AB12', 'p1', 'محمد');
+  G.addPlayer(s, 'p2', 'خالد');
+  G.startSession(s, fixedOffer);
+
+  assert.equal(s.phase, 'draw');
+  const nar = G.narratorId(s);
+  const lis = G.listenerId(s);
+  assert.equal(G.viewFor(s, nar).offer.length, 3, 'الراوي يراها');
+  assert.equal(G.viewFor(s, lis).offer.length, 3, 'والخصم كذلك — قرار صريح');
+  assert.equal(G.viewFor(s, nar).myDraw, true);
+  assert.equal(G.viewFor(s, lis).myDraw, false);
+
+  assert.equal(G.drawPick(s, lis, 0).ok, false, 'الخصم لا يسحب');
+  assert.equal(G.drawPick(s, nar, 9).ok, false, 'ولا بطاقة خارج الثلاث');
+  assert.equal(G.drawPick(s, nar, 1).ok, true);
+  assert.equal(s.phase, 'pick');
+  assert.equal(G.currentFigure(s).id, 'jahiz', 'الشخصية التي سحبها');
+  assert.equal(G.currentQuestion(s).id, 'moment', 'وسؤالُها');
+  assert.equal(G.viewFor(s, lis).chosenIndex, 1, 'والخصم يرى أيَّها تُرِكَت');
+});
+
+test('الاختيار لا يُقبل قبل القرعة', () => {
+  const s = G.createSession('AB12', 'p1', 'محمد');
+  G.addPlayer(s, 'p2', 'خالد');
+  G.startSession(s, fixedOffer);
+  assert.equal(G.choose(s, G.narratorId(s), 'true').ok, false, 'لا رواية بلا شخصية');
+});
+
+test('البطاقة المسحوبة لا تعود في جولةٍ تالية', () => {
+  const s = G.createSession('AB12', 'p1', 'محمد');
+  G.addPlayer(s, 'p2', 'خالد');
+  G.startSession(s);                       // قرعة حقيقية من البنك كله
+  const seen = new Set();
+  for (let i = 0; i < G.ROUNDS; i++) {
+    for (const c of s.offer) {
+      assert.ok(!seen.has(`${c.figureId}:${c.questionId}`), 'لا تُعرض بطاقةٌ استُهلكت');
+    }
+    const nar = G.narratorId(s);
+    G.drawPick(s, nar, 0);
+    seen.add(`${s.chosen.figureId}:${s.chosen.questionId}`);
+    G.choose(s, nar, 'true');
+    G.rule(s, G.listenerId(s), 'trust');
+    G.next(s);
+  }
+  assert.equal(seen.size, G.ROUNDS, 'كل جولةٍ ببطاقتها');
 });
 
 test('الخيارات الثلاثة تصل الراوي وحده، وبنقاطها', () => {
@@ -94,31 +151,35 @@ test('الكشف يُظهر الحقيقة والنوع والنقاط', () => {
   assert.equal(v.ruling, 'liar');
 });
 
-test('التقدّم: ثلاثة أسئلة لكل شخصية ثم الشخصية التالية', () => {
+test('التقدّم: قرعةٌ ثم جولة، والجلسة تنتهي بعد الأخيرة', () => {
   const s = started();
-  const seen = [];
-  for (let i = 0; i < 12; i++) {
-    seen.push(`${s.figureIndex}:${s.questionIndex}`);
+  const narrators = [];
+  for (let i = 0; i < G.ROUNDS; i++) {
+    assert.equal(s.roundNo, i, `الجولة ${i + 1}`);
+    if (i > 0) {                            // الأولى سُحبت في `started`
+      assert.equal(s.phase, 'draw', 'كل جولةٍ تبدأ بقرعة');
+      G.drawPick(s, G.narratorId(s), 0);
+    }
+    narrators.push(G.narratorId(s));
     G.choose(s, G.narratorId(s), 'true');
     G.rule(s, G.listenerId(s), 'trust');
     G.next(s);
   }
-  assert.equal(seen[0], '0:0');
-  assert.equal(seen[2], '0:2');
-  assert.equal(seen[3], '1:0', 'انتقل للشخصية الثانية');
-  assert.equal(seen[11], '3:2', 'آخر سؤال في آخر شخصية');
   assert.equal(s.status, 'over');
+  assert.equal(s.phase, null);
+  assert.deepEqual(narrators.slice(0, 4), ['p1', 'p2', 'p1', 'p2'], 'تناوبٌ جولةً جولة');
 });
 
 test('الفائز صاحب أعلى رصيد، والتعادل يُعلن', () => {
   const s = started();
-  for (let i = 0; i < 12; i++) {
+  for (let i = 0; i < G.ROUNDS; i++) {
+    if (i > 0) G.drawPick(s, G.narratorId(s), 0);
     G.choose(s, G.narratorId(s), 'absurd');
     G.rule(s, G.listenerId(s), 'trust');   // الراوي يخدع دائماً
     G.next(s);
   }
   assert.equal(s.status, 'over');
-  // ستّ جولات لكل راوٍ × ٥ نقاط = تعادل
+  // جولات متساوية لكل راوٍ × ٥ نقاط = تعادل
   assert.equal(s.scores.p1, s.scores.p2);
   assert.equal(s.winnerId, null, 'تعادل');
 });
@@ -133,10 +194,10 @@ test('لا حكم قبل اختيار، ولا انتقال قبل كشف', () =
 
 test('لا جلسة بلاعب واحد، ولا تُبدأ مرتين', () => {
   const s = G.createSession('AB12', 'p1', 'م');
-  assert.equal(G.startSession(s, fixedDeck).ok, false);
+  assert.equal(G.startSession(s, fixedOffer).ok, false);
   G.addPlayer(s, 'p2', 'خ');
-  assert.equal(G.startSession(s, fixedDeck).ok, true);
-  assert.equal(G.startSession(s, fixedDeck).ok, false, 'لا تُبدأ مرتين');
+  assert.equal(G.startSession(s, fixedOffer).ok, true);
+  assert.equal(G.startSession(s, fixedOffer).ok, false, 'لا تُبدأ مرتين');
   assert.equal(G.addPlayer(s, 'p3', 'ث').ok, false, 'ولا ثالث');
 });
 

@@ -349,10 +349,31 @@ async function sanadRoom(nameA = 'أ', nameB = 'ب') {
   return { a, b };
 }
 
-test('سَنَد: جولة كاملة — الخيارات للراوي، والحكم للخصم', async () => {
+test('سَنَد: جولة كاملة — قرعةٌ ثم خيارات الراوي ثم حكم الخصم', async () => {
   const { a, b } = await sanadRoom('محمد', 'خالد');
   a.send('sanad-start');
-  assert.ok(await until(() => a.state?.phase === 'pick'), 'بدأت الجلسة');
+  assert.ok(await until(() => a.state?.phase === 'draw'), 'بدأت بالقرعة');
+
+  // القرعة يراها الطرفان، والسحب للراوي وحده (قرار مستخدم صريح)
+  assert.equal(a.state.offer.length, 3, 'ثلاث بطاقات');
+  assert.equal(b.state.offer.length, 3, 'والخصم يراها كذلك');
+  assert.deepEqual(a.state.offer.map((c) => c.figure.name), b.state.offer.map((c) => c.figure.name));
+  assert.equal(new Set(a.state.offer.map((c) => c.figure.id)).size, 3, 'شخصيات مختلفة');
+
+  const nar0 = a.state.me.isNarrator ? a : b;
+  const lis0 = nar0 === a ? b : a;
+  assert.equal(nar0.state.myDraw, true);
+  assert.equal(lis0.state.myDraw, false);
+
+  lis0.send('sanad-draw', { index: 0 });
+  await settle(250);
+  assert.equal(a.state.phase, 'draw', 'الخصم لا يسحب');
+
+  const wanted = nar0.state.offer[1].figure.name;
+  nar0.send('sanad-draw', { index: 1 });
+  assert.ok(await until(() => a.state?.phase === 'pick'), 'سحب الراوي بطاقته');
+  assert.equal(a.state.figure.name, wanted, 'وهي التي اختارها');
+  assert.equal(lis0.state.chosenIndex, 1, 'والخصم يرى أيَّها تُرِكَت');
 
   const nar = a.state.me.isNarrator ? a : b;
   const lis = nar === a ? b : a;
@@ -380,6 +401,9 @@ test('سَنَد: جولة كاملة — الخيارات للراوي، وال
 test('رسالة من المحاكمة لا تُدمّر غرفة سَنَد', async () => {
   const { a, b } = await sanadRoom();
   a.send('sanad-start');
+  await until(() => a.state?.phase === 'draw');
+  const nar = a.state.me.isNarrator ? a : b;
+  nar.send('sanad-draw', { index: 0 });
   await until(() => a.state?.phase === 'pick');
   const figureBefore = a.state.figure.id;
 
@@ -507,6 +531,8 @@ test('رسالة من لعبة أخرى لا تمسّ غرفة مَعاني', as
 test('رسالة من مَعاني لا تمسّ غرفة سَنَد', async () => {
   const { a, b } = await sanadRoom();
   a.send('sanad-start');
+  await until(() => a.state?.phase === 'draw');
+  (a.state.me.isNarrator ? a : b).send('sanad-draw', { index: 0 });
   await until(() => a.state?.phase === 'pick');
   const figureBefore = a.state.figure.id;
 
@@ -878,17 +904,21 @@ test('المباراة: الوعاء ثابت، والجولة تتبدّل بل
 
   // نُنهي «سَنَد» كاملةً: أربع جولات، والراوي يختار والمنصِت يحكم
   a.send('sanad-start');
-  assert.ok(await until(() => a.state?.phase === 'pick'), 'بدأت سَنَد');
-  for (let i = 0; i < 20 && a.state?.status !== 'over'; i++) {   // ٤ شخصيات × ٣ أسئلة
+  assert.ok(await until(() => a.state?.phase === 'draw'), 'بدأت سَنَد بقرعتها');
+  for (let i = 0; i < 20 && a.state?.status !== 'over'; i++) {   // ١٢ جولة
     const nar = a.state.me.isNarrator ? a : b;
     const lis = nar === a ? b : a;
+    if (a.state.phase === 'draw') {
+      nar.send('sanad-draw', { index: 0 });
+      if (!await until(() => a.state?.phase === 'pick')) break;
+    }
     nar.send('sanad-choose', { kind: 'absurd' });
     if (!await until(() => lis.state?.phase === 'talk')) break;
     lis.send('sanad-rule', { ruling: 'liar' });          // الكاشف يأخذ الخمس دائماً
     await until(() => a.state?.phase === 'reveal' || a.state?.status === 'over');
     if (a.state?.status === 'over') break;
     a.send('sanad-next');
-    await until(() => a.state?.phase === 'pick' || a.state?.status === 'over');
+    await until(() => a.state?.phase === 'draw' || a.state?.status === 'over');
   }
   assert.equal(a.state.status, 'over', 'انتهت سَنَد');
 
