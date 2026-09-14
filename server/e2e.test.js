@@ -649,3 +649,179 @@ test('الانضمام إلى ديوان «من أنا» بلعبة أخرى ي�
   assert.ok(c.errors[0].includes('مَن أنا'), `يذكر اللعبة: ${c.errors[0]}`);
   a.ws.close(); b.ws.close(); c.ws.close();
 });
+
+/* ─────────── المزاد ─────────── */
+
+async function mazadRoom(nameA = 'أ', nameB = 'ب') {
+  const a = client(); await a.open;
+  a.send('create', { game: 'mazad', name: nameA });
+  await until(() => a.state?.code);
+  const b = client(); await b.open;
+  b.send('join', { game: 'mazad', code: a.state.code, name: nameB });
+  await until(() => b.state?.me);
+  return { a, b };
+}
+
+test('المزاد: الشرط يُكتب فيراه الطرفان، ثم يتزايدان بالتناوب', async () => {
+  const { a, b } = await mazadRoom('محمد', 'خالد');
+  a.send('mazad-start');
+  assert.ok(await until(() => a.state?.phase === 'setup'), 'فُتح الديوان');
+
+  a.send('mazad-config', { patch: { text: 'اعطني أسماء من المبشرين بالجنة', seconds: 45, points: 7 } });
+  assert.ok(await until(() => b.state?.round.text.includes('المبشرين')), 'الشرط وصل الخصم');
+  assert.equal(b.state.round.seconds, 45, 'والوقت');
+  assert.equal(b.state.round.points, 7, 'والنقاط');
+
+  a.send('mazad-open', { amount: 5 });
+  assert.ok(await until(() => b.state?.phase === 'bidding'), 'فُتح المزاد');
+  assert.equal(b.state.round.myTurn, true, 'والدور للخصم');
+  assert.equal(a.state.round.myTurn, false);
+
+  const errs = a.errors.length;
+  a.send('mazad-raise', { amount: 9 });          // ليس دوره
+  await settle(200);
+  assert.equal(a.state.round.bid, 5, 'لم تُقبل مزايدة من غير صاحب الدور');
+  assert.ok(a.errors.length > errs, 'ووصله سببُ الرفض — لا صمت في لعبة أدواتها مشتركة');
+  assert.ok(a.errors.at(-1).includes('دورك'), `السبب: ${a.errors.at(-1)}`);
+
+  b.send('mazad-raise', { amount: 9 });
+  assert.ok(await until(() => a.state?.round.bid === 9), 'زايد صاحب الدور');
+  assert.equal(a.state.round.raises, 2, 'وعدّاد الزيادات يرتفع');
+  assert.equal(a.state.round.myTurn, true, 'ورجع الدور');
+
+  a.ws.close(); b.ws.close();
+});
+
+test('المزاد: «عليك هاتها» ثم الإجابات من الطرفين ثم الحكم', async () => {
+  const { a, b } = await mazadRoom('محمد', 'خالد');
+  a.send('mazad-start');
+  await until(() => a.state?.phase === 'setup');
+  a.send('mazad-config', { patch: { text: 'أسماء الخلفاء الراشدين', points: 4 } });
+  await until(() => a.state?.round.text);
+  a.send('mazad-open', { amount: 3 });
+  await until(() => b.state?.phase === 'bidding');
+  b.send('mazad-raise', { amount: 4 });
+  await until(() => a.state?.round.bid === 4);
+
+  a.send('mazad-hand');
+  assert.ok(await until(() => b.state?.phase === 'challenge'), 'سُلِّم التحدي');
+  assert.equal(b.state.round.iChallenge, true, 'والمتحدّي هو من زايد');
+  assert.equal(a.state.round.iChallenge, false);
+
+  // كلاهما يضيف — أدوات مشتركة في لعبة يدويّة
+  b.send('mazad-answer', { text: 'أبو بكر' });
+  a.send('mazad-answer', { text: 'عمر' });
+  assert.ok(await until(() => a.state?.round.answers.length === 2), 'أُضيفت من الطرفين');
+  assert.deepEqual(a.state.round.answers.map((x) => x.text), ['أبو بكر', 'عمر']);
+
+  // حذفٌ بموضعٍ مختومٍ بنصّه: ختمٌ لا يطابق يُرفض ولا يحذف شارةً أخرى
+  const stale = a.errors.length;
+  a.send('mazad-remove', { index: 0, text: 'عمر' });
+  await settle(200);
+  assert.equal(a.state.round.answers.length, 2, 'ختمٌ لا يطابق الموضعَ لا يحذف');
+  assert.ok(a.errors.length > stale, 'ويُخبَر صاحبه');
+
+  a.send('mazad-remove', { index: 0, text: 'أبو بكر' });
+  assert.ok(await until(() => b.state?.round.answers.length === 1), 'وحُذفت');
+  assert.equal(b.state.round.answers[0].text, 'عمر');
+
+  b.send('mazad-judge', { done: true });
+  assert.ok(await until(() => a.state?.phase === 'judged'), 'صدر الحكم');
+  assert.equal(a.state.scores[b.id], 4, 'المتحدّي أخذ نقاط الجولة');
+  assert.equal(a.state.scores[a.id], 0);
+
+  a.ws.close(); b.ws.close();
+});
+
+test('المزاد: من عجز تذهب نقاطه لخصمه، والجولة التالية نظيفة', async () => {
+  const { a, b } = await mazadRoom();
+  a.send('mazad-start');
+  await until(() => a.state?.phase === 'setup');
+  a.send('mazad-config', { patch: { text: 'شرط', points: 6 } });
+  await until(() => a.state?.round.text === 'شرط');
+  a.send('mazad-open', { amount: 20 });
+  await until(() => b.state?.phase === 'bidding');
+  b.send('mazad-hand');                         // ب يسلّمها لأ (صاحب آخر مزايدة)
+  assert.ok(await until(() => a.state?.round.iChallenge), 'أ هو المتحدّي');
+
+  a.send('mazad-judge', { done: false });
+  assert.ok(await until(() => b.state?.phase === 'judged'), 'صدر الحكم');
+  assert.equal(b.state.scores[b.id], 6, 'من سلّمها أخذها لأن خصمه عجز');
+  assert.equal(b.state.scores[a.id], 0);
+
+  b.send('mazad-next');
+  assert.ok(await until(() => a.state?.roundNo === 2), 'جولة ثانية');
+  assert.equal(a.state.phase, 'setup');
+  assert.equal(a.state.round.text, '', 'بشرطٍ جديد');
+  assert.equal(a.state.round.points, 6, 'والنقاط المضبوطة باقية');
+  a.ws.close(); b.ws.close();
+});
+
+test('المزاد: المؤقّت يجري ويتوقف ويُمدّ من الطرفين، ويرنّ عند الصفر', async () => {
+  const { a, b } = await mazadRoom();
+  a.send('mazad-start');
+  await until(() => a.state?.phase === 'setup');
+  a.send('mazad-config', { patch: { text: 'شرط', seconds: 5 } });
+  await until(() => a.state?.round.seconds === 5);
+  a.send('mazad-open', { amount: 2 });
+  await until(() => b.state?.phase === 'bidding');
+  b.send('mazad-hand');
+  await until(() => a.state?.phase === 'challenge');
+
+  a.send('mazad-timer', { action: 'start' });
+  assert.ok(await until(() => b.state?.round.timer.running), 'انطلق عند الطرفين');
+
+  b.send('mazad-timer', { action: 'pause' });    // الخصم يوقفه — أدوات مشتركة
+  assert.ok(await until(() => a.state?.round.timer.running === false), 'وأوقفه خصمه');
+
+  const before = a.state.round.timer.leftMs;
+  a.send('mazad-timer', { action: 'adjust', delta: 10 });
+  assert.ok(await until(() => a.state?.round.timer.leftMs > before + 8000), 'ومُدّ عشر ثوانٍ');
+
+  a.send('mazad-timer', { action: 'reset' });
+  assert.ok(await until(() => Math.abs(a.state.round.timer.leftMs - 5000) < 300), 'وصُفِّر');
+  a.ws.close(); b.ws.close();
+});
+
+test('المزاد: الجلسة تنتهي متى شاءا بفائز', async () => {
+  const { a, b } = await mazadRoom();
+  a.send('mazad-start');
+  await until(() => a.state?.phase === 'setup');
+  a.send('mazad-config', { patch: { text: 'شرط' } });
+  await until(() => a.state?.round.text === 'شرط');
+  a.send('mazad-open', { amount: 3 });
+  await until(() => b.state?.phase === 'bidding');
+  b.send('mazad-hand');
+  await until(() => a.state?.phase === 'challenge');
+  a.send('mazad-judge', { done: true });
+  await until(() => a.state?.phase === 'judged');
+
+  a.send('mazad-end');
+  assert.ok(await until(() => b.state?.status === 'over'), 'انتهت');
+  assert.equal(b.state.winnerId, a.id, 'والفائز صاحب الرصيد');
+  a.ws.close(); b.ws.close();
+});
+
+test('رسالة من لعبة أخرى لا تمسّ غرفة المزاد', async () => {
+  const { a, b } = await mazadRoom();
+  a.send('mazad-start');
+  await until(() => a.state?.phase === 'setup');
+
+  for (const t of ['start-trial', 'sanad-start', 'maani-start', 'man-ana-start', 'man-ana-next']) a.send(t);
+  a.send('maani-answer', { choice: 'synonym' });
+  a.send('man-ana-guess', { text: 'المتنبي' });
+  await settle(300);
+
+  assert.equal(a.state.game, 'mazad');
+  assert.equal(a.state.phase, 'setup', 'المرحلة سليمة');
+  a.ws.close(); b.ws.close();
+});
+
+test('الانضمام إلى ديوان المزاد بلعبة أخرى يُرفض', async () => {
+  const { a, b } = await mazadRoom();
+  const c = client(); await c.open;
+  c.send('join', { game: 'man-ana', code: a.state.code, name: 'ج' });
+  assert.ok(await until(() => c.errors.length > 0), 'رُفض');
+  assert.ok(c.errors[0].includes('المزاد'), `يذكر اللعبة: ${c.errors[0]}`);
+  a.ws.close(); b.ws.close(); c.ws.close();
+});

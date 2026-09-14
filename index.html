@@ -483,6 +483,145 @@
       </div>
     </section>
 
+
+    <!-- ═══ الشاشة الثامنة: المزاد ═══ -->
+    <section id="screen-mazad" class="screen">
+      <div class="wrap">
+        <header class="topbar">
+          <div class="brand"><span class="mini-seal">ز</span> المزاد</div>
+          <div class="room-chip">رمز الديوان <b id="mazad-code">—</b></div>
+        </header>
+
+        <div class="sanad-bar">
+          <div class="sanad-side">
+            <strong id="mz-me">—</strong>
+            <span class="sanad-score" id="mz-me-score">0</span>
+          </div>
+          <div class="sanad-mid">
+            <div class="sanad-step" id="mz-round-no">—</div>
+          </div>
+          <div class="sanad-side end">
+            <strong id="mz-opp">بانتظار الخصم…</strong>
+            <span class="sanad-score" id="mz-opp-score">0</span>
+          </div>
+        </div>
+
+        <div class="panel invite" id="mz-invite" hidden>
+          <span class="case-tag">الدعوة</span>
+          <p class="invite-line">شارك هذا الرابط مع خصمك — وتكلّموا بمكالمة بينكم</p>
+          <div class="invite-row">
+            <input type="text" id="mz-invite-link" readonly />
+            <button class="btn btn-ghost btn-sm" id="mz-copy-link">انسخ الرابط</button>
+          </div>
+        </div>
+
+        <button class="btn btn-primary" id="mz-start" hidden>افتح الديوان</button>
+
+        <!-- رفضٌ من الخادم يُشرَح هنا لا بتنبيهٍ حاجب — الأدوات مشتركة فالتزاحم طبيعي -->
+        <p class="mz-note" id="mz-note" role="status" aria-live="polite" hidden></p>
+
+        <!-- ═ المؤقّت: أعلى المنتصف، وكل شيء فيه بيدكما ═ -->
+        <div class="mz-deck" id="mz-deck" hidden>
+          <div class="mz-clock" id="mz-clock">1:00</div>
+          <div class="mz-clock-row">
+            <button class="btn btn-ghost btn-sm" id="mz-minus">−١٠</button>
+            <button class="btn btn-primary btn-sm" id="mz-play">▶ ابدأ</button>
+            <button class="btn btn-ghost btn-sm" id="mz-plus">+١٠</button>
+            <button class="btn btn-ghost btn-sm" id="mz-reset">صفّر</button>
+          </div>
+          <div class="mz-knobs">
+            <label class="mz-knob">
+              <span>الوقت (ثانية)</span>
+              <input type="number" id="mz-seconds" min="5" max="900" step="5" />
+            </label>
+            <label class="mz-knob">
+              <span>نقاط الجولة</span>
+              <input type="number" id="mz-points" min="1" max="99" />
+              <small id="mz-points-label">—</small>
+            </label>
+            <button class="btn btn-ghost btn-sm" id="mz-end">أنهِ الجلسة</button>
+          </div>
+        </div>
+
+        <!-- ═ الإعداد: الشرط ═ -->
+        <div class="panel mz-setup" id="mz-setup" hidden>
+          <span class="case-tag">شرط الجولة</span>
+          <input type="text" id="mz-text" maxlength="200" autocomplete="off"
+                 placeholder="مثال: اعطني أسماء من المبشرين بالجنة" />
+          <p class="mz-hint">يكتبه أيّكما، ويراه الآخر وهو يُكتب. ثم افتح المزاد برقمٍ تراه.</p>
+          <div class="mz-open-row">
+            <input type="number" id="mz-open-amount" min="1" max="99" value="5" />
+            <button class="btn btn-primary" id="mz-open" disabled>افتح المزاد</button>
+          </div>
+        </div>
+
+        <!-- ═ المزايدة: الرقم في المنتصف ═ -->
+        <div class="mz-bidding" id="mz-bidding" hidden>
+          <p class="mz-headline" id="mz-headline">—</p>
+
+          <div class="mz-bid-card" id="mz-bid-card">
+            <span class="mz-bid-num" id="mz-bid-num">٠</span>
+            <span class="mz-bid-unit">إجابة</span>
+          </div>
+
+          <p class="mz-raises" id="mz-raises">—</p>
+          <p class="mz-bidder" id="mz-bidder"></p>
+          <div class="mz-bid-log" id="mz-bid-log"></div>
+
+          <p class="mz-turn-note" id="mz-turn-note"></p>
+          <div class="mz-bid-controls" id="mz-bid-controls" hidden>
+            <div class="mz-raise-row">
+              <input type="number" id="mz-raise-amount" min="1" max="99" />
+              <button class="btn btn-primary" id="mz-raise">أزيد</button>
+            </div>
+            <button class="btn btn-ghost" id="mz-hand">عليك — هاتها</button>
+          </div>
+        </div>
+
+        <!-- ═ التحدي: الإجابات بالأسفل مع المايك ═ -->
+        <div class="mz-challenge" id="mz-challenge" hidden>
+          <div class="mz-challenge-head">
+            <p id="mz-challenger">—</p>
+            <span class="mz-count" id="mz-count">—</span>
+          </div>
+
+          <div class="mz-answers" id="mz-answers"></div>
+
+          <div class="mz-answer-tools" id="mz-answer-tools">
+            <div class="mz-mic-row">
+              <button class="btn btn-ghost" id="mz-mic">🎙 المايك</button>
+              <input type="text" id="mz-typed" maxlength="60" autocomplete="off"
+                     placeholder="أو اكتب إجابة…" />
+              <button class="btn btn-primary" id="mz-send-typed">أضف</button>
+              <button class="btn btn-ghost btn-sm" id="mz-clear">امسح الكل</button>
+            </div>
+            <p class="mz-live" id="mz-live" hidden></p>
+            <small class="mz-mic-note" id="mz-mic-note">المايك يقطّع كلامك عند الوقفات — احذف أي شارة خاطئة بضغطة</small>
+          </div>
+
+          <div class="mz-judge-row" id="mz-judge-row">
+            <button class="btn btn-primary" id="mz-done">أجابها ✓</button>
+            <button class="btn btn-ghost" id="mz-failed">لم يجبها ✕</button>
+          </div>
+        </div>
+
+        <!-- ═ الحكم ═ -->
+        <div class="mz-judged" id="mz-judged" hidden>
+          <span class="mz-verdict-mark" id="mz-verdict-mark">✓</span>
+          <div class="mz-verdict-text">
+            <strong id="mz-verdict-line">—</strong>
+            <span class="mz-gain" id="mz-verdict-gain">—</span>
+          </div>
+          <button class="btn btn-primary btn-sm" id="mz-next-round">جولة جديدة</button>
+        </div>
+
+        <div class="panel sanad-over" id="mz-over" hidden>
+          <h2 class="rayed" id="mz-over-title">—</h2>
+          <p id="mz-over-score">—</p>
+        </div>
+      </div>
+    </section>
+
   </div>
 
 

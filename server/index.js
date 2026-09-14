@@ -17,6 +17,7 @@ import * as S from './state.js';
 import * as SN from './sanad.js';
 import * as MN from './maani.js';
 import * as MA from './man-ana.js';
+import * as MZ from './mazad.js';
 import * as judge from './judge.js';
 import { CARD_BY_ID, PHASE_LABELS } from './rules.js';
 import { loadEnv, lanAddress, ensureCert } from './setup.js';
@@ -93,8 +94,10 @@ const send = (ws, type, payload) => {
 };
 
 /** آلات حالات الألعاب المبنيّة — الغرفة تحمل لعبتها فتُختار منها. */
-const ENGINES = { muhakama: S, sanad: SN, maani: MN, 'man-ana': MA };
-const GAME_LABELS = { muhakama: 'المحاكمة', sanad: 'سَنَد', maani: 'مَعاني', 'man-ana': 'مَن أنا' };
+const ENGINES = { muhakama: S, sanad: SN, maani: MN, 'man-ana': MA, mazad: MZ };
+const GAME_LABELS = {
+  muhakama: 'المحاكمة', sanad: 'سَنَد', maani: 'مَعاني', 'man-ana': 'مَن أنا', mazad: 'المزاد',
+};
 
 const engineOf = (room) => ENGINES[room.game] ?? S;
 
@@ -108,6 +111,9 @@ const GAME_MESSAGES = {
   sanad: ['sanad-start', 'sanad-choose', 'sanad-rule', 'sanad-next'],
   maani: ['maani-start', 'maani-answer', 'maani-next'],
   'man-ana': ['man-ana-start', 'man-ana-guess', 'man-ana-next'],
+  mazad: ['mazad-start', 'mazad-config', 'mazad-open', 'mazad-raise', 'mazad-hand',
+          'mazad-answer', 'mazad-remove', 'mazad-clear', 'mazad-timer',
+          'mazad-judge', 'mazad-next', 'mazad-end'],
 };
 
 const GAME_OF_MESSAGE = new Map(
@@ -149,6 +155,30 @@ function scheduleClue(room) {
       send(sock, 'man-ana-clue', { clue: room.state.clueIndex, exhausted: Boolean(r.exhausted) });
     }
   }, CLUE_MS);
+}
+
+/**
+ * جرسُ انتهاء وقت «المزاد». يُعلن الصفر ولا يُنهي الجولة: اللعبة يدويّة،
+ * فقد يمدّان الوقت أو يحكمان أو يتركانه — القرار لهما لا للخادم.
+ */
+function clearBell(room) {
+  if (room?.bellTimer) { clearTimeout(room.bellTimer); room.bellTimer = null; }
+}
+
+function scheduleBell(room) {
+  clearBell(room);
+  if (room.game !== 'mazad' || !room.state.round?.timer.running) return;
+  const left = MZ.timeLeft(room.state);
+  if (left <= 0) return;
+  room.bellTimer = setTimeout(() => {
+    room.bellTimer = null;
+    if (!rooms.has(room.state.code)) return;      // أُغلقت الغرفة أثناء الانتظار
+    // يُجمَّد العدّاد **قبل** البثّ: لولاه بُثَّت حالةٌ تقول `running` ورصيدُها صفر،
+    // فيقرأ الزرُّ «⏸ أوقف» فوق ساعةٍ واقفةٍ على 0:00 لا شيء فيها ليُوقَف.
+    MZ.timerPause(room.state);
+    broadcast(room);                              // ليستقرّ العدّاد على صفر عندهما
+    for (const sock of room.sockets.values()) send(sock, 'mazad-bell', {});
+  }, left);
 }
 
 /** يبثّ لكل لاعب لقطته هو — لا لقطة مشتركة، وإلا تسرّبت أسرار الخصم. */
@@ -345,6 +375,42 @@ async function handleObjection(room, playerId) {
     if (card) card.spent = false;
     broadcast(room);
     announce(room, `تعذّر الفصل في الاعتراض: ${err.message} — رُدّت البطاقة.`);
+  }
+}
+
+/** يترجم رسالة «المزاد» إلى استدعاء في آلة الحالات. */
+function applyMazad(room, playerId, msg) {
+  const st = room.state;
+  switch (msg.type) {
+    case 'mazad-config': return MZ.configure(st, msg.patch ?? {});
+    case 'mazad-open': {
+      const r = MZ.openBidding(st, playerId, msg.amount);
+      return r.ok ? { ...r, announce: 'mazad-bid' } : r;
+    }
+    case 'mazad-raise': {
+      const r = MZ.raise(st, playerId, msg.amount);
+      return r.ok ? { ...r, announce: 'mazad-bid' } : r;
+    }
+    case 'mazad-hand': {
+      const r = MZ.handOver(st, playerId);
+      return r.ok ? { ...r, announce: 'mazad-hand', extra: { challengerId: st.round.challengerId } } : r;
+    }
+    case 'mazad-answer': return MZ.addAnswer(st, playerId, msg.text);
+    case 'mazad-remove': return MZ.removeAnswer(st, msg.index, msg.text);
+    case 'mazad-clear': return MZ.clearAnswers(st);
+    case 'mazad-timer':
+      if (msg.action === 'start') return MZ.timerStart(st);
+      if (msg.action === 'pause') return MZ.timerPause(st);
+      if (msg.action === 'reset') return MZ.timerReset(st);
+      if (msg.action === 'adjust') return MZ.timerAdjust(st, msg.delta);
+      return { ok: false, error: 'أمر مؤقّت غير معروف' };
+    case 'mazad-judge': {
+      const r = MZ.judge(st, msg.done);
+      return r.ok ? { ...r, announce: 'mazad-verdict', extra: { winnerId: r.winnerId, done: Boolean(msg.done) } } : r;
+    }
+    case 'mazad-next': return MZ.nextRound(st);
+    case 'mazad-end': return MZ.endSession(st);
+    default: return { ok: false, error: 'رسالة غير معروفة' };
   }
 }
 
@@ -598,6 +664,36 @@ wss.on('connection', (ws) => {
           break;
         }
 
+        /* ─── المزاد ─── */
+
+        case 'mazad-start': {
+          if (room?.game !== 'mazad') break;
+          const r = MZ.startSession(room.state);
+          if (!r.ok) { send(ws, 'error', { error: r.error, soft: true }); break; }
+          broadcast(room);
+          break;
+        }
+
+        /**
+         * كل أدوات الجولة. **أيّ اللاعبَين** يستعملها — لعبة يدويّة بالاتفاق،
+         * والحارس الوحيد هو دور المزايدة داخل آلة الحالات نفسها.
+         */
+        case 'mazad-config': case 'mazad-open': case 'mazad-raise': case 'mazad-hand':
+        case 'mazad-answer': case 'mazad-remove': case 'mazad-clear': case 'mazad-timer':
+        case 'mazad-judge': case 'mazad-next': case 'mazad-end': {
+          if (room?.game !== 'mazad') break;
+          const r = applyMazad(room, playerId, msg);
+          if (!r.ok) { send(ws, 'error', { error: r.error, soft: true }); break; }
+
+          // كل ما يمسّ المؤقّت يُعيد جدولة الجرس — والحكم والانتقال يوقفانه
+          scheduleBell(room);
+          broadcast(room);
+          if (r.announce) for (const [pid, sock] of room.sockets) {
+            send(sock, r.announce, { ...r.extra, mine: pid === playerId });
+          }
+          break;
+        }
+
         case 'next-trial':
           if (room && room.state.status === 'trial' && S.isTrialOver(room.state)) await beginTrial(room);
           break;
@@ -614,6 +710,7 @@ wss.on('connection', (ws) => {
     if (player) player.connected = false;
     if (room.sockets.size === 0) {
       clearClue(room);               // مؤقّتٌ على غرفةٍ ميتة يبقى يعمل ويمنع الخروج
+      clearBell(room);
       rooms.delete(room.state.code);
     } else broadcast(room);
   });

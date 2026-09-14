@@ -2449,7 +2449,9 @@ input.code {
   .pair-link { width: 42px; height: 42px; font-size: 18px; }
   .mn-relations { grid-template-columns: 1fr; }
   .mn-verdict { grid-template-columns: auto 1fr; }
-  .mn-gain { grid-column: 2; justify-self: start; }
+  /* مقصورةٌ على شبكة «مَعاني»: `.mn-gain` صنفٌ مشترك تستعمله «مَن أنا» و«المزاد»
+     أيضاً، وقاعدةُ `grid-column` غير مقصورةٍ تفرض عموداً ثانياً على لوحٍ عموده واحد */
+  .mn-verdict > .mn-gain { grid-column: 2; justify-self: start; }
 }
 
 /* الحركة اختيارية: من طلب تقليلها يرى النتيجة نفسها بلا انتقال */
@@ -2793,4 +2795,438 @@ input.code {
   .miss, .ma-reveal-text strong, .ma-reveal-mark.win,
   .ma-answer.locked .ma-answer-row { animation: none; }
   .clue-strip, .ma-ladder i, .ma-era { transition: none; }
+}
+
+/* ═══════════ لعبة «المزاد» ═══════════ */
+
+/* ── لوح التحكم: المؤقّت أعلى المنتصف وكل مقابضه ── */
+
+.mz-deck {
+  padding: 18px 20px 14px;
+  margin-bottom: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--white);
+  box-shadow: var(--shadow-sm);
+  text-align: center;
+  opacity: 0;
+  transition: opacity 0.35s var(--ease);
+}
+
+.mz-deck.shown { opacity: 1; }
+
+.mz-clock {
+  font-size: clamp(46px, 11vw, 82px);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: 1px;
+  color: var(--ink);
+  direction: ltr;                        /* عدّادٌ يُقرأ تحت ضغط: لاتيني معزول */
+  unicode-bidi: isolate;
+  transition: color 0.3s var(--ease);
+}
+
+.mz-clock.running { color: var(--gold-deep); }
+.mz-clock.done { color: var(--line-strong); }
+.mz-clock.urgent { color: var(--clay); animation: clock-pulse 1s ease-in-out infinite; }
+.mz-clock.rang { animation: clock-rang 0.7s var(--ease); }
+
+@keyframes clock-pulse { 50% { transform: scale(1.06); } }
+@keyframes clock-rang {
+  0%, 100% { transform: none; }
+  20% { transform: translateX(-8px) scale(1.05); color: var(--clay); }
+  55% { transform: translateX(7px) scale(1.05); color: var(--clay); }
+}
+
+.mz-clock-row {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin: 10px 0 14px;
+}
+
+.mz-clock-row .btn { width: auto; min-width: 88px; }
+
+.mz-knobs {
+  display: flex;
+  gap: 14px;
+  align-items: end;
+  justify-content: center;
+  flex-wrap: wrap;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.mz-knob { display: grid; gap: 4px; text-align: start; }
+.mz-knob > span { color: var(--muted); font-size: 12px; }
+.mz-knob small { color: var(--gold-deep); font-size: 11.5px; }
+.mz-knobs .btn { width: auto; }
+
+.mz-knob input,
+.mz-open-row input,
+.mz-raise-row input {
+  width: 96px;
+  padding: 9px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  color: var(--ink);
+  font: inherit;
+  font-size: 16px;
+  text-align: center;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+.mz-knob input:focus,
+.mz-open-row input:focus,
+.mz-raise-row input:focus,
+.mz-setup input[type='text']:focus,
+.mz-mic-row input:focus {
+  outline: none;
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(192, 138, 62, 0.16);
+}
+
+/* ── الإعداد: شرط الجولة ── */
+
+.mz-setup {
+  opacity: 0;
+  transition: opacity 0.35s var(--ease);
+}
+.mz-setup.shown { opacity: 1; }
+
+.mz-setup input[type='text'] {
+  width: 100%;
+  margin: 10px 0 8px;
+  padding: 14px 16px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  color: var(--ink);
+  font: inherit;
+  font-size: 17px;
+}
+
+.mz-hint { color: var(--muted); font-size: 12.5px; margin: 0 0 14px; }
+
+.mz-open-row { display: flex; gap: 10px; align-items: center; }
+.mz-open-row .btn { width: auto; flex: 1; }
+
+/* ── المزايدة: الرقم في المنتصف ── */
+
+.mz-bidding {
+  padding: 20px;
+  margin-bottom: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--white);
+  box-shadow: var(--shadow-sm);
+  text-align: center;
+  opacity: 0;
+  transition: opacity 0.35s var(--ease);
+}
+
+.mz-bidding.shown { opacity: 1; }
+
+.mz-headline {
+  margin: 0 0 16px;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.8;
+}
+
+.mz-bid-card {
+  display: inline-grid;
+  gap: 2px;
+  justify-items: center;
+  min-width: 150px;
+  padding: 18px 30px;
+  border: 2px solid var(--gold);
+  border-radius: 26px 8px 26px 8px;      /* قوسٌ طيني غير متماثل */
+  background: var(--gold-tint);
+  box-shadow: var(--shadow-md);
+  transition: all 0.4s var(--ease);
+}
+
+/* كل رقمٍ جديد يقفز إلى المنتصف */
+/* كل رقم مزايدةٍ في النصّ: لاتيني معزول كالرقم الكبير، لئلا يُقرأ رقمان بخطّين */
+.mz-bid-amt {
+  font-style: normal;
+  font-weight: 700;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+.mz-bid-card.bump { animation: bid-bump 0.55s var(--ease); }
+.mz-bid-card.settled { border-color: var(--line-strong); background: var(--sand-100); box-shadow: var(--shadow-sm); }
+
+@keyframes bid-bump {
+  0% { transform: scale(0.72) translateY(-24px) rotate(-3deg); opacity: 0.4; }
+  55% { transform: scale(1.12) translateY(4px); }
+}
+
+/* رقم المزايدة لاتيني معزول: «٥» عربيّاً-هنديّاً حلقةٌ تُقرأ صفراً، وهو رقمُ
+   اللعبة كلِّها يُلتقط تحت ضغط المزايدة — كأرقام لوح النقاط لا كمؤشّر تقدّم */
+.mz-bid-num {
+  font-size: 54px;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--gold-deep);
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+.mz-bid-unit { color: var(--muted); font-size: 13px; }
+
+.mz-raises { margin: 14px 0 2px; font-size: 14px; font-weight: 600; }
+.mz-bidder { margin: 0 0 12px; color: var(--muted); font-size: 12.5px; }
+
+.mz-bid-log { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-bottom: 14px; }
+
+.mz-bid-step {
+  padding: 3px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--sand-100);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.mz-bid-step.mine { border-color: var(--gold-soft); background: var(--gold-tint); color: var(--gold-deep); }
+.mz-bid-step b { font-weight: 600; }
+
+.mz-turn-note { margin: 0 0 12px; color: var(--muted); font-size: 13.5px; }
+.mz-turn-note.mine { color: var(--gold-deep); font-weight: 600; }
+
+.mz-bid-controls { display: grid; gap: 10px; justify-items: center; }
+.mz-raise-row { display: flex; gap: 10px; align-items: center; }
+.mz-raise-row .btn, .mz-bid-controls > .btn { width: auto; min-width: 150px; }
+
+/* ── التحدي: الإجابات بالأسفل مع المايك ── */
+
+.mz-challenge {
+  padding: 18px 20px;
+  margin-bottom: 16px;
+  border: 1px solid var(--gold-soft);
+  border-radius: var(--radius);
+  background: var(--white);
+  box-shadow: var(--shadow-md);
+  opacity: 0;
+  transition: opacity 0.35s var(--ease);
+}
+
+.mz-challenge.shown { opacity: 1; }
+
+.mz-challenge-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.mz-challenge-head p { margin: 0; font-size: 15px; }
+
+.mz-count {
+  padding: 6px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: var(--sand-100);
+  color: var(--ink-soft);
+  font-size: 15px;
+  font-weight: 700;
+  transition: all 0.3s var(--ease);
+}
+
+.mz-count.enough { border-color: var(--palm); background: #eef5ed; color: var(--palm); }
+
+.mz-answers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 58px;
+  padding: 12px;
+  margin-bottom: 12px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--sand-50);
+}
+
+.mz-empty { margin: auto; color: var(--muted); font-size: 13px; }
+
+.mz-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 8px 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--gold-soft);
+  background: var(--white);
+  font-size: 14.5px;
+  box-shadow: var(--shadow-sm);
+}
+
+.mz-chip i {
+  display: grid;
+  place-items: center;
+  width: 21px;
+  height: 21px;
+  border-radius: 50%;
+  background: var(--gold-tint);
+  color: var(--gold-deep);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.mz-chip.fresh { animation: chip-in 0.35s var(--ease); }
+
+@keyframes chip-in { from { opacity: 0; transform: scale(0.8) translateY(8px); } }
+
+.mz-chip-x {
+  border: none;
+  background: none;
+  padding: 0 2px;
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.mz-chip-x:hover { color: var(--clay); }
+
+.mz-mic-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.mz-mic-row .btn { width: auto; }
+
+.mz-mic-row input {
+  flex: 1;
+  min-width: 140px;
+  padding: 11px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  color: var(--ink);
+  font: inherit;
+  font-size: 15px;
+}
+
+#mz-mic.on { border-color: var(--clay); background: #fdf1ec; color: var(--clay); animation: mic-pulse 1.6s ease-in-out infinite; }
+
+@keyframes mic-pulse { 50% { box-shadow: 0 0 0 6px rgba(180, 101, 58, 0.13); } }
+
+.mz-live {
+  margin: 9px 0 0;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--sand-100);
+  color: var(--muted);
+  font-size: 13px;
+  min-height: 1.6em;
+}
+
+.mz-mic-note { display: block; margin-top: 7px; color: var(--muted); font-size: 12px; }
+
+.mz-judge-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.mz-judge-row .btn { flex: 1; width: auto; }
+
+/* ── الحكم ── */
+
+.mz-judged {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 20px;
+  margin-bottom: 16px;
+  border: 1px solid var(--gold-soft);
+  border-radius: var(--radius);
+  background: var(--white);
+  box-shadow: var(--shadow-md);
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.4s var(--ease), transform 0.4s var(--ease);
+}
+
+.mz-judged.shown { opacity: 1; transform: none; }
+
+.mz-verdict-mark {
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 21px;
+  color: #fff;
+}
+
+.mz-verdict-mark.done { background: var(--palm); animation: mark-pop 0.5s var(--ease); }
+.mz-verdict-mark.failed { background: var(--clay); }
+
+.mz-verdict-text { display: grid; gap: 4px; justify-items: start; }
+.mz-verdict-text strong { font-size: 15.5px; }
+
+/* شارة النقاط: صنفُها هي لا `.mn-gain` المستعار من «مَعاني» — الاستعارة جرّت
+   معها قاعدةَ `grid-column` الخاصة بشبكة تلك، وشارةٌ في عمودٍ واحدٍ تتمدّد بعرضه */
+.mz-gain {
+  justify-self: start;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: var(--sand-100);
+  color: var(--ink-soft);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.mz-gain.mine { background: var(--gold-tint); color: var(--gold-deep); border: 1px solid var(--gold-soft); }
+.mz-judged .btn { width: auto; }
+
+/* ملاحظةُ الرفض: تشرح ولا تحجب — لا تبتلع نقراً ولا تُزيح اللوح تحتها */
+.mz-note {
+  position: sticky;
+  top: 8px;
+  z-index: 8;
+  margin: 0 auto 10px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 8px 16px;
+  border: 1px solid var(--gold-soft);
+  border-radius: 999px;
+  background: var(--gold-tint);
+  color: var(--gold-deep);
+  font-size: 13.5px;
+  font-weight: 600;
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-6px);
+  transition: opacity 0.2s var(--ease), transform 0.2s var(--ease);
+}
+
+.mz-note.is-on { opacity: 1; transform: none; }
+
+@media (max-width: 620px) {
+  .mz-knobs { gap: 10px; }
+  .mz-knob input { width: 84px; }
+  .mz-open-row, .mz-raise-row { flex-wrap: wrap; }
+  .mz-open-row .btn, .mz-raise-row .btn { width: 100%; }
+  .mz-judge-row { flex-direction: column; }
+  .mz-judged { grid-template-columns: auto 1fr; }
+  .mz-judged .btn { grid-column: 2; justify-self: start; }
+}
+
+/* الحركة اختيارية: من طلب تقليلها يرى النتيجة نفسها بلا انتقال */
+@media (prefers-reduced-motion: reduce) {
+  .mz-clock.urgent, .mz-clock.rang, .mz-bid-card.bump,
+  .mz-chip.fresh, #mz-mic.on, .mz-verdict-mark.done { animation: none; }
+  .mz-bid-card, .mz-count, .mz-judged, .mz-deck, .mz-bidding, .mz-challenge,
+  .mz-note { transition: none; }
 }

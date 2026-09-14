@@ -9,12 +9,14 @@ import { connect, bindTrialUI, startTrial } from './trial.js';
 import { connect as connectSanad, bindSanadUI } from './sanad.js';
 import { connect as connectMaani, bindMaaniUI } from './maani.js';
 import { connect as connectManAna, bindManAnaUI } from './man-ana.js';
+import { connect as connectMazad, bindMazadUI } from './mazad.js';
 
 /** الألعاب المبنيّة فعلاً في كتالوج GAMES. */
 const TRIAL_ID = 'muhakama';
 const SANAD_ID = 'sanad';
 const MAANI_ID = 'maani';
 const MAN_ANA_ID = 'man-ana';
+const MAZAD_ID = 'mazad';
 
 const state = {
   mode: 'create',   // 'create' | 'join'
@@ -229,12 +231,36 @@ function enterManAna() {
   });
 }
 
+let mazadConnected = false;
+
+/** يفتح شاشة «المزاد» ويصل بالخادم. لعبة يدويّة — كل الأدوات بيد اللاعبَين. */
+function enterMazad() {
+  if (mazadConnected) { show('screen-mazad'); return; }
+  mazadConnected = true;
+  bindMazadUI();
+  connectMazad({
+    mode: state.mode,
+    name: state.name,
+    code: state.code,
+    onJoined: ({ code }) => {
+      state.code = code;
+      $('#mazad-code').textContent = code;
+      show('screen-mazad');
+    },
+    onError: (err) => {
+      if (!$('#screen-mazad').classList.contains('is-active')) mazadConnected = false;
+      window.alert(err);
+    },
+  });
+}
+
 /** اللعبة المبنيّة → دالّة دخولها. ما ليس فيها يقف عند شاشة الاستعداد. */
 const ENTER = {
   [TRIAL_ID]: enterTrial,
   [SANAD_ID]: enterSanad,
   [MAANI_ID]: enterMaani,
   [MAN_ANA_ID]: enterManAna,
+  [MAZAD_ID]: enterMazad,
 };
 
 /* ---------- الربط ---------- */
