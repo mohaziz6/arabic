@@ -12,7 +12,7 @@ let proc;
 
 before(async () => {
   proc = spawn('node', ['server/index.js'], {
-    env: { ...process.env, PORT: String(PORT), ANTHROPIC_API_KEY: '', REVEAL_MS: '0' },
+    env: { ...process.env, PORT: String(PORT), ANTHROPIC_API_KEY: '', REVEAL_MS: '0', CLUE_MS: '400' },
     stdio: 'ignore',
   });
   for (let i = 0; i < 60; i++) {
@@ -527,5 +527,125 @@ test('الانضمام إلى ديوان مَعاني بلعبة أخرى يُر
   c.send('join', { game: 'sanad', code: a.state.code, name: 'ج' });
   assert.ok(await until(() => c.errors.length > 0), 'رُفض');
   assert.ok(c.errors[0].includes('مَعاني'), `يذكر اللعبة: ${c.errors[0]}`);
+  a.ws.close(); b.ws.close(); c.ws.close();
+});
+
+/* ─────────── من أنا ─────────── */
+
+async function whoRoom(nameA = 'أ', nameB = 'ب') {
+  const a = client(); await a.open;
+  a.send('create', { game: 'man-ana', name: nameA });
+  await until(() => a.state?.code);
+  const b = client(); await b.open;
+  b.send('join', { game: 'man-ana', code: a.state.code, name: nameB });
+  await until(() => b.state?.me);
+  return { a, b };
+}
+
+/** اسم الشخصية الجارية — يُقرأ من البنك لا من اللقطة، فاللقطة تحجبه عمداً. */
+async function currentName(c) {
+  const { FIGURES } = await import('./man-ana-figures.js');
+  const first = c.state.clues[0];
+  return FIGURES.find((f) => f.clues[0] === first)?.name;
+}
+
+test('من أنا: التلميح يتقدّم من الخادم، والقيمة تتناقص معه', async () => {
+  const { a, b } = await whoRoom('محمد', 'خالد');
+  a.send('man-ana-start');
+  assert.ok(await until(() => a.state?.phase === 'clues'), 'بدأت الجلسة');
+
+  assert.equal(a.state.clues.length, 1, 'تلميح واحد في البداية');
+  assert.equal(a.state.points, 6, 'وأعلى قيمة');
+  assert.deepEqual(a.state.clues, b.state.clues, 'التلميح نفسه للخصمين');
+  assert.equal(a.state.answer, null, 'الجواب محجوب');
+  assert.equal(JSON.stringify(a.state).includes('aliases'), false, 'صيغ الجواب لا تُرسل');
+
+  // الخادم هو الذي يقود الإيقاع — بلا أن يطلب أحدٌ شيئاً
+  assert.ok(await until(() => a.state?.clues.length === 2, 3000), 'وصل التلميح الثاني تلقائياً');
+  assert.equal(a.state.points, 5, 'ورخصت الشخصية');
+  assert.equal(b.state.clues.length, 2, 'ووصل الخصم أيضاً');
+  assert.ok(a.state.clueMsLeft > 0, 'ومعه ما تبقّى من الدورة');
+
+  a.ws.close(); b.ws.close();
+});
+
+test('من أنا: الإصابة تأخذ قيمة التلميح وتوقف المؤقّت', async () => {
+  const { a, b } = await whoRoom();
+  a.send('man-ana-start');
+  await until(() => a.state?.phase === 'clues');
+
+  const name = await currentName(a);
+  a.send('man-ana-guess', { text: name });
+  assert.ok(await until(() => a.state?.phase === 'reveal'), 'حُلّت الشخصية');
+
+  assert.equal(a.state.solvedBy, a.id);
+  assert.equal(a.state.scores[a.id], 6);
+  assert.equal(a.state.answer.name, name, 'كُشف الاسم');
+  assert.equal(b.state.answer.name, name, 'ويصل الخصم');
+
+  const cluesAtSolve = a.state.clues.length;
+  await settle(1200);                       // ثلاث دورات لو بقي المؤقّت يعمل
+  assert.equal(a.state.clues.length, cluesAtSolve, 'وقف المؤقّت بعد الحلّ');
+  assert.equal(a.state.phase, 'reveal');
+
+  a.ws.close(); b.ws.close();
+});
+
+test('من أنا: الخطأ يُقفل صاحبه حتى التلميح التالي، ويراه خصمه بنصّه', async () => {
+  const { a, b } = await whoRoom('محمد', 'خالد');
+  a.send('man-ana-start');
+  await until(() => a.state?.phase === 'clues');
+
+  a.send('man-ana-guess', { text: 'شخصية لا وجود لها' });
+  assert.ok(await until(() => a.state?.iLocked), 'أُقفل المخطئ');
+  assert.equal(b.state.iLocked, false, 'وخصمه حرّ');
+  assert.equal(b.state.oppLocked, true, 'ويعلم أنه أخطأ');
+  assert.equal(b.state.misses[0].text, 'شخصية لا وجود لها', 'ويرى نصّ تخمينه');
+  assert.equal(b.state.misses[0].mine, false);
+  assert.equal(a.state.misses[0].mine, true);
+
+  assert.ok(await until(() => a.state?.iLocked === false, 3000), 'فُكّ القفل مع التلميح التالي');
+  a.ws.close(); b.ws.close();
+});
+
+test('من أنا: نفاد التلميحات يطوي الشخصية بلا نقاط', async () => {
+  const { a, b } = await whoRoom();
+  a.send('man-ana-start');
+  await until(() => a.state?.phase === 'clues');
+
+  assert.ok(await until(() => a.state?.phase === 'reveal', 8000), 'انقضت التلميحات');
+  assert.equal(a.state.solvedBy, null);
+  assert.equal(a.state.scores[a.id], 0);
+  assert.equal(a.state.scores[b.id], 0);
+  assert.ok(a.state.answer.name, 'ومع ذلك يُكشف الاسم');
+
+  a.send('man-ana-next');
+  assert.ok(await until(() => a.state?.progress.figure === 2), 'وانتقل الطرفان');
+  assert.equal(a.state.clues.length, 1, 'بشخصيةٍ نظيفة');
+  a.ws.close(); b.ws.close();
+});
+
+test('رسالة من لعبة أخرى لا تمسّ غرفة «من أنا»', async () => {
+  const { a, b } = await whoRoom();
+  a.send('man-ana-start');
+  await until(() => a.state?.phase === 'clues');
+  const before = a.state.clues[0];
+
+  for (const t of ['start-trial', 'sanad-start', 'maani-start', 'maani-next', 'next-trial']) a.send(t);
+  a.send('maani-answer', { choice: 'synonym' });
+  a.send('sanad-rule', { ruling: 'liar' });
+  await settle(300);
+
+  assert.equal(a.state.game, 'man-ana');
+  assert.equal(a.state.clues[0], before, 'الشخصية لم تتبدّل');
+  a.ws.close(); b.ws.close();
+});
+
+test('الانضمام إلى ديوان «من أنا» بلعبة أخرى يُرفض', async () => {
+  const { a, b } = await whoRoom();
+  const c = client(); await c.open;
+  c.send('join', { game: 'maani', code: a.state.code, name: 'ج' });
+  assert.ok(await until(() => c.errors.length > 0), 'رُفض');
+  assert.ok(c.errors[0].includes('مَن أنا'), `يذكر اللعبة: ${c.errors[0]}`);
   a.ws.close(); b.ws.close(); c.ws.close();
 });

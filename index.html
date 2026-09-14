@@ -398,6 +398,91 @@
       </div>
     </section>
 
+
+    <!-- ═══ الشاشة السابعة: مَن أنا ═══ -->
+    <section id="screen-man-ana" class="screen">
+      <div class="wrap">
+        <header class="topbar">
+          <div class="brand"><span class="mini-seal">؟</span> مَن أنا</div>
+          <div class="room-chip">رمز الديوان <b id="man-ana-code">—</b></div>
+        </header>
+
+        <div class="sanad-bar">
+          <div class="sanad-side">
+            <strong id="ma-me">—</strong>
+            <span class="sanad-score" id="ma-me-score">0</span>
+          </div>
+          <div class="sanad-mid">
+            <div class="sanad-step" id="ma-step">—</div>
+            <div class="ma-ladder" id="ma-ladder"></div>
+          </div>
+          <div class="sanad-side end">
+            <strong id="ma-opp">بانتظار الخصم…</strong>
+            <span class="sanad-score" id="ma-opp-score">0</span>
+          </div>
+        </div>
+
+        <div class="panel invite" id="ma-invite" hidden>
+          <span class="case-tag">الدعوة</span>
+          <p class="invite-line">شارك هذا الرابط مع خصمك — تبدأ التلميحات حين يدخل</p>
+          <div class="invite-row">
+            <input type="text" id="ma-invite-link" readonly />
+            <button class="btn btn-ghost btn-sm" id="ma-copy-link">انسخ الرابط</button>
+          </div>
+        </div>
+
+        <button class="btn btn-primary" id="ma-start" hidden>ابدأ الجلسة</button>
+
+        <div class="ma-stage" id="ma-stage" hidden>
+          <div class="ma-emblem" id="ma-emblem">
+            <div class="ma-emblem-art" id="ma-emblem-art"></div>
+            <h2 class="ma-emblem-title">مَن أنا؟</h2>
+            <p class="ma-era" id="ma-era" hidden>—</p>
+          </div>
+
+          <div class="ma-meter">
+            <div class="timer-ring" id="ma-timer-ring" hidden><span id="ma-timer">—</span></div>
+            <div class="ma-points-box">
+              <span class="ma-points" id="ma-points">—</span>
+              <small id="ma-points-label">—</small>
+            </div>
+          </div>
+        </div>
+
+        <div class="ma-clues" id="ma-clues" hidden></div>
+
+        <div class="ma-misses" id="ma-misses" hidden></div>
+
+        <div class="ma-answer" id="ma-answer" hidden>
+          <div class="ma-answer-row">
+            <input type="text" id="ma-guess" maxlength="60" autocomplete="off"
+                   placeholder="مَن هو؟ اكتب الاسم…" />
+            <button class="btn btn-primary" id="ma-send">خمِّن</button>
+          </div>
+          <small class="ma-answer-note" id="ma-answer-note">اكتب الاسم بلا تشكيل</small>
+        </div>
+
+        <div class="ma-reveal" id="ma-reveal" hidden>
+          <div class="ma-reveal-head">
+            <span class="ma-reveal-mark" id="ma-reveal-mark">✓</span>
+            <div class="ma-reveal-text">
+              <small id="ma-reveal-who">—</small>
+              <strong id="ma-reveal-name">—</strong>
+              <em id="ma-reveal-era">—</em>
+            </div>
+            <span class="mn-gain" id="ma-gain">—</span>
+          </div>
+          <p class="ma-reveal-body" id="ma-reveal-body">—</p>
+          <button class="btn btn-primary btn-sm" id="ma-next">التالي</button>
+        </div>
+
+        <div class="panel sanad-over" id="ma-over" hidden>
+          <h2 class="rayed" id="ma-over-title">—</h2>
+          <p id="ma-over-score">—</p>
+        </div>
+      </div>
+    </section>
+
   </div>
 
 

@@ -16,6 +16,7 @@ import { WebSocketServer } from 'ws';
 import * as S from './state.js';
 import * as SN from './sanad.js';
 import * as MN from './maani.js';
+import * as MA from './man-ana.js';
 import * as judge from './judge.js';
 import { CARD_BY_ID, PHASE_LABELS } from './rules.js';
 import { loadEnv, lanAddress, ensureCert } from './setup.js';
@@ -92,8 +93,8 @@ const send = (ws, type, payload) => {
 };
 
 /** آلات حالات الألعاب المبنيّة — الغرفة تحمل لعبتها فتُختار منها. */
-const ENGINES = { muhakama: S, sanad: SN, maani: MN };
-const GAME_LABELS = { muhakama: 'المحاكمة', sanad: 'سَنَد', maani: 'مَعاني' };
+const ENGINES = { muhakama: S, sanad: SN, maani: MN, 'man-ana': MA };
+const GAME_LABELS = { muhakama: 'المحاكمة', sanad: 'سَنَد', maani: 'مَعاني', 'man-ana': 'مَن أنا' };
 
 const engineOf = (room) => ENGINES[room.game] ?? S;
 
@@ -106,17 +107,61 @@ const GAME_MESSAGES = {
   muhakama: ['start-trial', 'advance', 'play-card', 'live', 'speech', 'retry-verdict', 'next-trial'],
   sanad: ['sanad-start', 'sanad-choose', 'sanad-rule', 'sanad-next'],
   maani: ['maani-start', 'maani-answer', 'maani-next'],
+  'man-ana': ['man-ana-start', 'man-ana-guess', 'man-ana-next'],
 };
 
 const GAME_OF_MESSAGE = new Map(
   Object.entries(GAME_MESSAGES).flatMap(([game, types]) => types.map((t) => [t, game])),
 );
 
+/**
+ * دورة التلميح في «مَن أنا» — تُقصَّر في الاختبارات فلا تُبطئها.
+ *
+ * الإيقاع يقوده **الخادم** لا المتصفح: لو عدّ كلُّ جهازٍ لنفسه لانحرف عن الآخر
+ * فرأى أحدهما تلميحاً قبل خصمه، وهو سباقٌ على النقطة نفسها.
+ */
+const CLUE_MS = process.env.CLUE_MS !== undefined
+  ? Number(process.env.CLUE_MS) : MA.CLUE_SECONDS * 1000;
+
+/** يوقف مؤقّت الغرفة — يجب أن يُستدعى قبل كل إعادة جدولة وعند إغلاق الغرفة. */
+function clearClue(room) {
+  if (room?.clueTimer) { clearTimeout(room.clueTimer); room.clueTimer = null; }
+}
+
+/**
+ * يجدول كشف التلميح التالي. كل بثّ يحمل `clueMsLeft` فيعدّ المتصفح محلياً
+ * بين البثّين، ويُعاد ضبطه عند كل تلميح — فلا ينحرف عدّاده عن الخادم.
+ */
+function scheduleClue(room) {
+  clearClue(room);
+  if (room.game !== 'man-ana' || room.state.phase !== 'clues') return;
+  room.clueAt = Date.now() + CLUE_MS;
+  room.clueTimer = setTimeout(() => {
+    room.clueTimer = null;
+    if (!rooms.has(room.state.code)) return;          // أُغلقت الغرفة أثناء الانتظار
+    const r = MA.advanceClue(room.state);
+    if (!r.ok) return;
+    // الجدولة قبل البثّ: لو بُثَّ أولاً لحمل ما تبقّى من الدورة المنقضية (صفراً)
+    // فجلس عدّاد المتصفح على ٠ دورةً كاملة حتى البثّ التالي
+    if (!r.exhausted) scheduleClue(room);
+    broadcast(room);
+    for (const sock of room.sockets.values()) {
+      send(sock, 'man-ana-clue', { clue: room.state.clueIndex, exhausted: Boolean(r.exhausted) });
+    }
+  }, CLUE_MS);
+}
+
 /** يبثّ لكل لاعب لقطته هو — لا لقطة مشتركة، وإلا تسرّبت أسرار الخصم. */
 function broadcast(room) {
   const engine = engineOf(room);
+  // ما تبقّى من دورة التلميح يعيش في الغرفة لا في الحالة: آلة الحالات خالصة بلا وقت
+  const clueMsLeft = room.game === 'man-ana' && room.clueAt && room.state.phase === 'clues'
+    ? Math.max(0, room.clueAt - Date.now())
+    : null;
   for (const [playerId, ws] of room.sockets) {
-    send(ws, 'state', { state: engine.viewFor(room.state, playerId) });
+    const state = engine.viewFor(room.state, playerId);
+    if (clueMsLeft !== null) state.clueMsLeft = clueMsLeft;
+    send(ws, 'state', { state });
   }
 }
 
@@ -512,6 +557,47 @@ wss.on('connection', (ws) => {
           break;
         }
 
+        /* ─── من أنا ─── */
+
+        case 'man-ana-start': {
+          if (room?.game !== 'man-ana') break;
+          const r = MA.startSession(room.state);
+          if (!r.ok) { send(ws, 'error', { error: r.error, soft: true }); break; }
+          scheduleClue(room);          // قبل البثّ ليحمل ما تبقّى من الدورة صحيحاً
+          broadcast(room);
+          break;
+        }
+
+        /**
+         * تخمين: الإصابة تُنهي الشخصية وتوقف المؤقّت، والخطأ يُقفل صاحبه
+         * حتى التلميح التالي — فيبقى المؤقّت يجري كما هو.
+         */
+        case 'man-ana-guess': {
+          if (room?.game !== 'man-ana') break;
+          const r = MA.guess(room.state, playerId, msg.text);
+          if (!r.ok) { send(ws, 'error', { error: r.error, soft: true }); break; }
+          if (r.solved) clearClue(room);
+          broadcast(room);
+          for (const [pid, sock] of room.sockets) {
+            send(sock, 'man-ana-result', {
+              mine: pid === playerId,
+              correct: r.correct,
+              solved: Boolean(r.solved),
+              points: r.points ?? 0,
+            });
+          }
+          break;
+        }
+
+        case 'man-ana-next': {
+          if (room?.game !== 'man-ana') break;
+          const r = MA.next(room.state);
+          if (!r.ok) { send(ws, 'error', { error: r.error, soft: true }); break; }
+          scheduleClue(room);          // لا تجدول شيئاً إن انتهت الجلسة (تُفحص بالداخل)
+          broadcast(room);
+          break;
+        }
+
         case 'next-trial':
           if (room && room.state.status === 'trial' && S.isTrialOver(room.state)) await beginTrial(room);
           break;
@@ -526,8 +612,10 @@ wss.on('connection', (ws) => {
     room.sockets.delete(playerId);
     const player = room.state.players[playerId];
     if (player) player.connected = false;
-    if (room.sockets.size === 0) rooms.delete(room.state.code);
-    else broadcast(room);
+    if (room.sockets.size === 0) {
+      clearClue(room);               // مؤقّتٌ على غرفةٍ ميتة يبقى يعمل ويمنع الخروج
+      rooms.delete(room.state.code);
+    } else broadcast(room);
   });
 });
 

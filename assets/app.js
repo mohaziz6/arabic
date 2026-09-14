@@ -8,11 +8,13 @@
 import { connect, bindTrialUI, startTrial } from './trial.js';
 import { connect as connectSanad, bindSanadUI } from './sanad.js';
 import { connect as connectMaani, bindMaaniUI } from './maani.js';
+import { connect as connectManAna, bindManAnaUI } from './man-ana.js';
 
 /** الألعاب المبنيّة فعلاً في كتالوج GAMES. */
 const TRIAL_ID = 'muhakama';
 const SANAD_ID = 'sanad';
 const MAANI_ID = 'maani';
+const MAN_ANA_ID = 'man-ana';
 
 const state = {
   mode: 'create',   // 'create' | 'join'
@@ -204,8 +206,36 @@ function enterMaani() {
   });
 }
 
+let manAnaConnected = false;
+
+/** يفتح شاشة «مَن أنا» ويصل بالخادم. إيقاع التلميحات يقوده الخادم. */
+function enterManAna() {
+  if (manAnaConnected) { show('screen-man-ana'); return; }
+  manAnaConnected = true;
+  bindManAnaUI();
+  connectManAna({
+    mode: state.mode,
+    name: state.name,
+    code: state.code,
+    onJoined: ({ code }) => {
+      state.code = code;
+      $('#man-ana-code').textContent = code;
+      show('screen-man-ana');
+    },
+    onError: (err) => {
+      if (!$('#screen-man-ana').classList.contains('is-active')) manAnaConnected = false;
+      window.alert(err);
+    },
+  });
+}
+
 /** اللعبة المبنيّة → دالّة دخولها. ما ليس فيها يقف عند شاشة الاستعداد. */
-const ENTER = { [TRIAL_ID]: enterTrial, [SANAD_ID]: enterSanad, [MAANI_ID]: enterMaani };
+const ENTER = {
+  [TRIAL_ID]: enterTrial,
+  [SANAD_ID]: enterSanad,
+  [MAANI_ID]: enterMaani,
+  [MAN_ANA_ID]: enterManAna,
+};
 
 /* ---------- الربط ---------- */
 

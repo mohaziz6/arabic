@@ -2463,3 +2463,334 @@ input.code {
   .word-chip.wrong, .mn-verdict-mark.win { animation: none; }
   .mn-pair[data-rel] .word-slab { transform: none; }
 }
+
+/* ═══════════ لعبة «مَن أنا» ═══════════ */
+
+.ma-stage {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 20px;
+  padding: 18px 22px;
+  margin-bottom: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--white);
+  box-shadow: var(--shadow-sm);
+  opacity: 0;
+  transition: opacity 0.4s var(--ease);
+}
+
+.ma-stage.shown { opacity: 1; }
+
+/* ── الشعار: قوسٌ يتنفّس ومخطوطات تطوف حوله ── */
+
+.ma-emblem {
+  position: relative;
+  text-align: center;
+  animation: emblem-breathe 6s ease-in-out infinite;
+}
+
+.ma-emblem-art { width: min(260px, 52vw); margin: 0 auto; }
+.ma-emblem-art svg { display: block; width: 100%; height: auto; overflow: visible; }
+
+/* هبطةٌ ثم ارتفاع عند وصول تلميح — تُعلن الجديد بلا كلمة */
+.ma-emblem.dip { animation: emblem-dip 0.85s var(--ease); }
+
+@keyframes emblem-breathe {
+  50% { transform: translateY(-7px); }
+}
+
+@keyframes emblem-dip {
+  30% { transform: translateY(16px) scale(0.97); }
+  65% { transform: translateY(-9px) scale(1.02); }
+}
+
+/* كل ورقةٍ تطوف بسرعتها، فلا يبدو المشهد لوحةً واحدة تتحرك */
+.ma-sheet { transform-box: fill-box; transform-origin: center; }
+.ma-sheet.ms-a { animation: sheet-drift 7s ease-in-out infinite; }
+.ma-sheet.ms-b { animation: sheet-drift 9s ease-in-out infinite 0.6s; }
+.ma-sheet.ms-c { animation: sheet-drift 8s ease-in-out infinite 1.2s; }
+.ma-sheet.ms-d { animation: sheet-drift 10s ease-in-out infinite 0.3s; }
+
+@keyframes sheet-drift {
+  50% { transform: translate(0, -9px) rotate(3deg); }
+}
+
+.ma-emblem-title {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 22%;
+  margin: 0;
+  font-family: 'Aref Ruqaa', serif;     /* عنوان مشهد: كلمتان تُلمحان لحظة */
+  font-size: clamp(24px, 4.4vw, 34px);
+  color: var(--gold-deep);
+  pointer-events: none;
+}
+
+.ma-era {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  opacity: 0;
+  transition: opacity 0.4s var(--ease);
+}
+
+.ma-era.shown { opacity: 1; }
+
+/* ── العدّاد وقيمة الشخصية ── */
+
+.ma-meter {
+  display: grid;
+  gap: 14px;
+  justify-items: center;
+}
+
+.ma-points-box { text-align: center; }
+
+.ma-points {
+  display: block;
+  width: 72px;
+  height: 72px;
+  line-height: 72px;
+  border-radius: 22px 7px 22px 7px;      /* قوسٌ طيني غير متماثل */
+  border: 2px solid var(--gold);
+  background: var(--gold-tint);
+  color: var(--gold-deep);
+  font-size: 34px;
+  font-weight: 700;
+}
+
+/* القيمة تهبط درجةً: تسقط قليلاً ثم تستقرّ، فيُحسّ اللاعب بالخسارة */
+.ma-points.drop { animation: points-drop 0.55s var(--ease); }
+
+@keyframes points-drop {
+  0% { transform: translateY(-14px) scale(1.18); color: var(--clay); }
+  60% { transform: translateY(3px) scale(0.96); }
+}
+
+.ma-points-box small { display: block; margin-top: 6px; color: var(--muted); font-size: 12px; }
+
+/* سلّم القيمة في شريط اللاعبين: ستُّ درجات تنطفئ واحدةً بعد أخرى */
+.ma-ladder { display: flex; gap: 4px; justify-content: center; }
+
+.ma-ladder i {
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--white);
+  color: var(--muted);
+  font-size: 11px;
+  font-style: normal;
+  transition: all 0.3s var(--ease);
+}
+
+.ma-ladder i.spent { opacity: 0.35; border-style: dashed; }
+.ma-ladder i.now {
+  border-color: var(--gold);
+  background: var(--gold-tint);
+  color: var(--gold-deep);
+  font-weight: 700;
+  transform: scale(1.18);
+}
+
+/* ── التلميحات: مخطوطات تنزلق داخلة ── */
+
+.ma-clues {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 14px;
+  opacity: 0;
+  transition: opacity 0.35s var(--ease);
+}
+
+.ma-clues.shown { opacity: 1; }
+
+.clue-strip {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--gold-soft);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  box-shadow: var(--shadow-sm);
+  opacity: 0;
+  transform: translateY(-14px);
+  transition: opacity 0.45s var(--ease), transform 0.45s var(--ease),
+              border-color 0.4s var(--ease), background 0.4s var(--ease);
+}
+
+.clue-strip.landed { opacity: 1; transform: none; }
+
+/* الأقدم يخفت ويتراجع: الأحدث هو الذي يُقرأ الآن */
+.clue-strip.old {
+  border-color: var(--line);
+  background: var(--sand-100);
+  opacity: 0.62;
+}
+
+.clue-strip p { margin: 0; line-height: 1.85; }
+
+.clue-num {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--gold-tint);
+  border: 1px solid var(--gold-soft);
+  color: var(--gold-deep);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.clue-strip.old .clue-num { background: var(--white); border-color: var(--line); color: var(--muted); }
+
+/* ── التخمينات الخاطئة ── */
+
+.ma-misses {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+  opacity: 0;
+  transition: opacity 0.3s var(--ease);
+}
+
+.ma-misses.shown { opacity: 1; }
+
+.miss {
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px dashed var(--line-strong);
+  background: var(--white);
+  color: var(--muted);
+  font-size: 13px;
+  animation: miss-in 0.35s var(--ease);
+}
+
+.miss.mine { border-color: var(--clay); background: #fdf1ec; }
+.miss b { color: var(--ink-soft); font-weight: 600; }
+.miss i { color: var(--clay); font-style: normal; }
+
+@keyframes miss-in { from { opacity: 0; transform: scale(0.85); } }
+
+/* ── شريط الإجابة ── */
+
+.ma-answer {
+  margin-bottom: 16px;
+  opacity: 0;
+  transition: opacity 0.3s var(--ease);
+}
+
+.ma-answer.shown { opacity: 1; }
+.ma-answer-row { display: flex; gap: 10px; }
+
+.ma-answer-row input {
+  flex: 1;
+  min-width: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 17px;
+  transition: border-color 0.2s var(--ease), box-shadow 0.2s var(--ease);
+}
+
+.ma-answer-row input:focus {
+  outline: none;
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(192, 138, 62, 0.16);
+}
+
+.ma-answer-row input:disabled { background: var(--sand-100); color: var(--muted); }
+
+/* أزرار الديوان عرضها 100% بالأصل، فلا يكفي flex:none لكبحها في صفٍّ */
+.ma-answer-row .btn { flex: none; width: auto; min-width: 128px; }
+
+.ma-answer-note { display: block; margin-top: 7px; color: var(--muted); font-size: 12.5px; }
+.ma-answer.locked .ma-answer-note { color: var(--clay); }
+.ma-answer.locked .ma-answer-row { animation: shake 0.4s; }
+
+/* ── بطاقة الكشف ── */
+
+.ma-reveal {
+  padding: 18px 20px;
+  margin-bottom: 16px;
+  border: 1px solid var(--gold-soft);
+  border-radius: var(--radius);
+  background: var(--white);
+  box-shadow: var(--shadow-md);
+  text-align: center;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.4s var(--ease), transform 0.4s var(--ease);
+}
+
+.ma-reveal.shown { opacity: 1; transform: none; }
+
+.ma-reveal-head {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 14px;
+  text-align: start;
+}
+
+.ma-reveal-mark {
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 21px;
+  color: #fff;
+  background: var(--muted);
+}
+
+.ma-reveal-mark.win { background: var(--palm); animation: mark-pop 0.5s var(--ease); }
+.ma-reveal-mark.lose { background: var(--clay); }
+.ma-reveal-mark.none { background: var(--line-strong); color: var(--ink-soft); }
+
+.ma-reveal-text small { display: block; color: var(--muted); font-size: 12.5px; }
+.ma-reveal-text strong {
+  display: block;
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.5;
+  animation: name-in 0.6s var(--ease);
+}
+.ma-reveal-text em { color: var(--gold-deep); font-size: 13px; font-style: normal; }
+
+@keyframes name-in { from { opacity: 0; transform: translateY(10px) scale(0.94); } }
+
+.ma-reveal-body {
+  margin: 14px 0 16px;
+  color: var(--ink-soft);
+  font-size: 14.5px;
+  line-height: 1.9;
+}
+
+@media (max-width: 620px) {
+  .ma-stage { grid-template-columns: 1fr; justify-items: center; }
+  .ma-meter { grid-auto-flow: column; align-items: center; }
+  .ma-reveal-head { grid-template-columns: auto 1fr; }
+  .ma-reveal-head .mn-gain { grid-column: 2; justify-self: start; }
+  .ma-answer-row { flex-wrap: wrap; }
+  .ma-answer-row .btn { width: 100%; }
+}
+
+/* الحركة اختيارية: من طلب تقليلها يرى النتيجة نفسها بلا انتقال */
+@media (prefers-reduced-motion: reduce) {
+  .ma-emblem, .ma-emblem.dip, .ma-sheet, .ma-points.drop,
+  .miss, .ma-reveal-text strong, .ma-reveal-mark.win,
+  .ma-answer.locked .ma-answer-row { animation: none; }
+  .clue-strip, .ma-ladder i, .ma-era { transition: none; }
+}
